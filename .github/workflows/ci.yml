@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  platform:
+    name: Lint, types, API, browser and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      CI_LOG_DIR: ${{ runner.temp }}/penny-ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium and system dependencies
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Prepare logs
+        run: mkdir -p "$CI_LOG_DIR"
+      - name: Lint
+        run: npm run lint 2>&1 | tee "$CI_LOG_DIR/lint.log"
+      - name: Typecheck
+        run: npm run typecheck 2>&1 | tee "$CI_LOG_DIR/typecheck.log"
+      # API and browser tests share a Next.js build directory; execute sequentially.
+      - name: API tests
+        run: npm run test:api 2>&1 | tee "$CI_LOG_DIR/api.log"
+      - name: Browser tests
+        run: npm run test:ui 2>&1 | tee "$CI_LOG_DIR/browser.log"
+      - name: Production build
+        run: npm run build 2>&1 | tee "$CI_LOG_DIR/build.log"
+      - name: Upload check logs and browser screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-checks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.CI_LOG_DIR }}
+            docs/verification/issue-2/models-browser.png
+          if-no-files-found: ignore
+          retention-days: 7
