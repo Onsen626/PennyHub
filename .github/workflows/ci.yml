@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: '1'
-      CI_LOG_DIR: ${{ runner.temp }}/penny-ci
+      CI_LOG_DIR: /tmp/penny-ci
     steps:
       - name: Checkout
         uses: actions/checkout@v4
