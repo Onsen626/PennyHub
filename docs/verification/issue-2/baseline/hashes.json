@@ -1,0 +1,11 @@
+{
+  "app/page.tsx": "291e9c5cc760541e7137ac6fb1f86967f8747939b8699a4943160d9778c02eb7",
+  "components/sidebar-app/app-sidebar.tsx": "f466eb5eb543f86744814493faffe0145fe844e9c46fca62ee1326baab42a7f8",
+  "package.json": "d030d721b924d68777a248797226cf3b98932495bbc1811fef8b6658c764b43e",
+  "package-lock.json": "ae29f958b46cb75ab6b5373efddeef6f123759ceda9d0fa6c8e014b23b5107cf",
+  "next.config.ts": "96e13374d410eaa6ece8fdc0bff3e30e9fc9d7b4dc9742fd7d3162da50feac04",
+  "tsconfig.json": "be18523b23b78b6e1a876ddd107d330f0168bddf09d751b57e0b5edce69c66f3",
+  ".gitignore": "a5422907ec3f6a69d2d85cee9c74933675720217e3c82037cddbad38d9e51149",
+  "eslint.config.mjs": "870f1adccecf3051cbcd9fd307cef51d7633cf510979c181a81f4b1797273493",
+  "README.md": "006e7e95a24a01dfe00aa6751bfa9aa5bed7a5c513c6e32bc4320241a5c5b079"
+}

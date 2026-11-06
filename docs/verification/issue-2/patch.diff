@@ -1,0 +1,4228 @@
+--- a/.gitignore
++++ b/.gitignore
+@@ -40,3 +40,7 @@
+ 
+ # heartbeat monitor state
+ /.heartbeat/
++
++# local platform credentials and state
++/.pennyagent/
++/.next-platform-test/
+--- a/README.md
++++ b/README.md
+@@ -1 +1,27 @@
+-# PennyHub
+\ No newline at end of file
++# PennyHub
++## 本机 PoC 登录与模型 API
++
++要求：Node.js 24（本次验证版本24.13.1），已安装依赖。
++
++```sh
++npm run setup:local
++npm run dev
++```
++
++初始化默认创建 `admin`，终端仅显示一次随机密码，请妥善保存。不存在默认密码；再次运行初始化不会覆盖原账户。也可在初始化前设置 `PENNY_ADMIN_USERNAME` 和 `PENNY_ADMIN_PASSWORD`，自定密码至少12个字符。
++
++打开终端显示的本机地址，登录后进入 Models，填写 API 基础地址（通常以 `/v1` 结尾）、模型名称和按需填写的 API Key。保存配置后可测试连接。当前支持 OpenAI Chat Completions 兼容接口；测试会产生一次真实HTTP请求，可能产生少量费用。
++
++本期采用本机单管理员模式，启动命令默认监听 `127.0.0.1`。不应直接公开到互联网。账户、12小时会话和加密模型配置保存在 `.pennyagent/`，自定义位置使用 `PENNY_DATA_DIR`。备份或迁移时保留整个目录及 `master.key`，不要提交到Git。
++
++```sh
++npm test
++npm run typecheck
++npm run lint
++npm run build
++npm start
++```
++
++测试使用独立临时数据目录和 `.next-platform-test` 构建目录，不接触实际账户。浏览器测试优先使用本机 Google Chrome；其他机器可设置 `PENNY_CHROME_PATH`，或运行 `npx playwright install chromium`。API与浏览器测试顺序执行，不要同时启动两组测试。
++
++具体接口、存储和验证说明见 [工单#2实现说明](docs/implementation/issue-2-platform.md)。
+--- /dev/null
++++ b/app/api/auth/login/route.ts
+@@ -0,0 +1,43 @@
++import { NextResponse } from "next/server"
++import {
++  authenticate,
++  SESSION_COOKIE,
++  SESSION_SECONDS,
++} from "@/lib/server/platform-auth"
++import { apiError, jsonObject, sameOrigin } from "@/lib/server/platform-http"
++
++export async function POST(request: Request) {
++  if (!sameOrigin(request))
++    return apiError("INVALID_ORIGIN", "请从当前平台页面登录。", 403)
++  const body = await jsonObject(request)
++  if (
++    !body ||
++    typeof body.username !== "string" ||
++    typeof body.password !== "string" ||
++    !body.username.trim() ||
++    !body.password ||
++    body.password.length > 1024 ||
++    body.username.length > 128
++  ) {
++    return apiError("INVALID_INPUT", "请填写用户名和密码。", 400)
++  }
++  const result = await authenticate(body.username.trim(), body.password)
++  if (result.kind === "uninitialized")
++    return apiError(
++      "NOT_INITIALIZED",
++      "请先在本机终端运行 npm run setup:local 初始化管理员。",
++      503
++    )
++  if (result.kind === "invalid")
++    return apiError("INVALID_CREDENTIALS", "用户名或密码错误。", 401)
++  const response = NextResponse.json({ username: result.username })
++  response.headers.set("Cache-Control", "no-store")
++  response.cookies.set(SESSION_COOKIE, result.token, {
++    httpOnly: true,
++    sameSite: "lax",
++    secure: new URL(request.url).protocol === "https:",
++    path: "/",
++    maxAge: SESSION_SECONDS,
++  })
++  return response
++}
+--- /dev/null
++++ b/app/api/auth/logout/route.ts
+@@ -0,0 +1,17 @@
++import { NextResponse } from "next/server"
++import { deleteSession, SESSION_COOKIE } from "@/lib/server/platform-auth"
++import { apiError, sameOrigin } from "@/lib/server/platform-http"
++export async function POST(request: Request) {
++  if (!sameOrigin(request))
++    return apiError("INVALID_ORIGIN", "请从当前平台页面退出。", 403)
++  await deleteSession()
++  const response = NextResponse.json({ ok: true })
++  response.headers.set("Cache-Control", "no-store")
++  response.cookies.set(SESSION_COOKIE, "", {
++    httpOnly: true,
++    sameSite: "lax",
++    path: "/",
++    maxAge: 0,
++  })
++  return response
++}
+--- /dev/null
++++ b/app/api/auth/session/route.ts
+@@ -0,0 +1,12 @@
++import { NextResponse } from "next/server"
++import { currentSession } from "@/lib/server/platform-auth"
++import { apiError } from "@/lib/server/platform-http"
++export async function GET() {
++  const session = await currentSession()
++  return session
++    ? NextResponse.json(
++        { username: session.username },
++        { headers: { "Cache-Control": "no-store" } }
++      )
++    : apiError("UNAUTHENTICATED", "请先登录平台。", 401)
++}
+--- /dev/null
++++ b/app/api/model-config/route.ts
+@@ -0,0 +1,39 @@
++import { NextResponse } from "next/server"
++import {
++  apiError,
++  jsonObject,
++  requireSession,
++} from "@/lib/server/platform-http"
++import {
++  ConfigInputError,
++  parseModelConfig,
++  publicModelConfig,
++  saveModelConfig,
++} from "@/lib/server/model-config"
++export async function GET() {
++  const denied = await requireSession()
++  if (denied) return denied
++  try {
++    return NextResponse.json(await publicModelConfig(), {
++      headers: { "Cache-Control": "no-store" },
++    })
++  } catch {
++    return apiError("STORAGE_ERROR", "读取配置失败，请检查本机数据目录。", 500)
++  }
++}
++export async function PUT(request: Request) {
++  const denied = await requireSession(request)
++  if (denied) return denied
++  const body = await jsonObject(request)
++  if (!body) return apiError("INVALID_INPUT", "请提交有效的 JSON 配置。", 400)
++  try {
++    return NextResponse.json(
++      await saveModelConfig(await parseModelConfig(body)),
++      { headers: { "Cache-Control": "no-store" } }
++    )
++  } catch (error) {
++    return error instanceof ConfigInputError
++      ? apiError("INVALID_INPUT", error.message, 400)
++      : apiError("STORAGE_ERROR", "保存配置失败，请检查本机数据目录。", 500)
++  }
++}
+--- /dev/null
++++ b/app/api/model-config/test/route.ts
+@@ -0,0 +1,28 @@
++import { NextResponse } from "next/server"
++import {
++  apiError,
++  jsonObject,
++  requireSession,
++} from "@/lib/server/platform-http"
++import {
++  ConfigInputError,
++  parseModelConfig,
++  probeModel,
++} from "@/lib/server/model-config"
++export async function POST(request: Request) {
++  const denied = await requireSession(request)
++  if (denied) return denied
++  const body = await jsonObject(request)
++  if (!body) return apiError("INVALID_INPUT", "请提交当前接口配置。", 400)
++  try {
++    const result = await probeModel(await parseModelConfig(body))
++    if (!result.ok) return apiError(result.code, result.message, result.status)
++    return NextResponse.json(result, {
++      headers: { "Cache-Control": "no-store" },
++    })
++  } catch (error) {
++    return error instanceof ConfigInputError
++      ? apiError("INVALID_INPUT", error.message, 400)
++      : apiError("STORAGE_ERROR", "读取接口配置失败，请检查本机数据目录。", 500)
++  }
++}
+--- /dev/null
++++ b/app/login/page.tsx
+@@ -0,0 +1,7 @@
++import { redirect } from "next/navigation"
++import { currentSession } from "@/lib/server/platform-auth"
++import { LoginForm } from "@/components/platform/login-form"
++export default async function LoginPage() {
++  if (await currentSession()) redirect("/")
++  return <LoginForm />
++}
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -1,1222 +1,7 @@
+-"use client";
+-
+-import { useState, useEffect, useMemo } from "react";
+-import {
+-  Sparkles,
+-  ChevronRight,
+-  Search,
+-  Bot,
+-  GitBranch,
+-  MessageSquare,
+-  ShieldCheck,
+-  Terminal,
+-  Play,
+-  ExternalLink,
+-} from "lucide-react";
+-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+-import {
+-  Banner,
+-  BannerTitle,
+-  BannerDescription,
+-  BannerActions,
+-  BannerAction,
+-} from "@/components/ui/banner";
+-import {
+-  Dialog,
+-  DialogContent,
+-  DialogTitle,
+-  DialogDescription,
+-} from "@/components/ui/dialog";
+-import { Badge } from "@/components/ui/badge";
+-import { Button } from "@/components/ui/button";
+-import { typeClass } from "@/lib/size-context";
+-import { fontWeights } from "@/lib/font-weight";
+-import {
+-  AppSidebar,
+-  FLOCKS_ICON_MAP,
+-} from "@/components/sidebar-app/app-sidebar";
+-import { SidebarInsetTopbar } from "@/components/sidebar-app/inset-topbar";
+-import { SecOpsChatbot } from "@/components/chat/secops-chatbot";
+-import {
+-  zhCopy,
+-  FLOCKS_NAV_ITEMS,
+-  FLOCKS_METRICS,
+-  FLOCKS_AGENTS,
+-  FLOCKS_WORKFLOWS,
+-  FLOCKS_SKILLS,
+-  FLOCKS_TOOLS,
+-  FLOCKS_MODELS,
+-  FLOCKS_CHANNELS,
+-  FLOCKS_TASKS,
+-  FLOCKS_WORKSPACE_ITEMS,
+-  type FlocksModuleId,
+-  type FlocksTool,
+-} from "@/lib/flocks-data";
+-import { cn } from "@/lib/utils";
+-
+-const ACCENT_ICON_STYLES: Record<string, string> = {
+-  purple: "text-purple-500 bg-purple-500/10",
+-  teal: "text-teal-500 bg-teal-500/10",
+-  green: "text-emerald-500 bg-emerald-500/10",
+-  orange: "text-orange-500 bg-orange-500/10",
+-  amber: "text-amber-500 bg-amber-500/10",
+-  indigo: "text-indigo-500 bg-indigo-500/10",
+-  pink: "text-pink-500 bg-pink-500/10",
+-  emerald: "text-emerald-500 bg-emerald-500/10",
+-};
+-
+-const AGENT_CATEGORY_LABELS: Record<string, string> = {
+-  all: "全部",
+-  recon: "资产测绘",
+-  exploit: "漏洞验证",
+-  cloud: "云安全",
+-  triage: "告警研判",
+-  dfir: "流量取证",
+-  report: "证据报告",
+-};
+-
+-const SKILL_DOMAIN_LABELS: Record<string, string> = {
+-  all: "全部",
+-  web: "Web 审计",
+-  cloud: "云原生",
+-  network: "网络协议",
+-  ad: "内网域控",
+-  code: "代码审计",
+-  dfir: "应急取证",
+-};
+-
+-const TOOL_CATEGORY_LABELS: Record<string, string> = {
+-  all: "全部",
+-  Recon: "资产测绘",
+-  Web: "Web 渗透",
+-  Network: "网络扫描",
+-  Cloud: "云原生",
+-  AD: "域控安全",
+-  Crypto: "密码分析",
+-  DFIR: "取证分析",
+-  OSINT: "开源情报",
+-};
+-
+-export default function FlocksPage() {
+-  const [activeModule, setActiveModule] = useState<FlocksModuleId>("home");
+-  const [copilotOpen, setCopilotOpen] = useState(false);
+-  const [copilotPrompt, setCopilotPrompt] = useState<string | undefined>(
+-    undefined
+-  );
+-  const [commandOpen, setCommandOpen] = useState(false);
+-  const [commandQuery, setCommandQuery] = useState("");
+-
+-  const [agentCategory, setAgentCategory] = useState<string>("all");
+-  const [toolCategory, setToolCategory] = useState<string>("all");
+-  const [toolSearch, setToolSearch] = useState("");
+-  const [skillFilter, setSkillFilter] = useState<string>("all");
+-
+-  const t = zhCopy;
+-
+-  useEffect(() => {
+-    const onKeyDown = (e: KeyboardEvent) => {
+-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+-        e.preventDefault();
+-        setCommandOpen((prev) => !prev);
+-      }
+-    };
+-    window.addEventListener("keydown", onKeyDown);
+-    return () => window.removeEventListener("keydown", onKeyDown);
+-  }, []);
+-
+-  const launchInCopilot = (promptText: string) => {
+-    setCopilotPrompt(promptText);
+-    setCopilotOpen(true);
+-  };
+-
+-  const filteredAgents = useMemo(() => {
+-    if (agentCategory === "all") return FLOCKS_AGENTS;
+-    return FLOCKS_AGENTS.filter((a) => a.category === agentCategory);
+-  }, [agentCategory]);
+-
+-  const filteredTools = useMemo(() => {
+-    return FLOCKS_TOOLS.filter((tool) => {
+-      const matchesCat =
+-        toolCategory === "all" || tool.category === toolCategory;
+-      const q = toolSearch.trim().toLowerCase();
+-      const matchesQuery =
+-        !q ||
+-        tool.name.toLowerCase().includes(q) ||
+-        tool.description.toLowerCase().includes(q) ||
+-        tool.runtime.toLowerCase().includes(q);
+-      return matchesCat && matchesQuery;
+-    });
+-  }, [toolCategory, toolSearch]);
+-
+-  const commandResults = useMemo(() => {
+-    const q = commandQuery.trim().toLowerCase();
+-    const navMatches = FLOCKS_NAV_ITEMS.filter(
+-      (item) =>
+-        !q ||
+-        t.nav[item.id].toLowerCase().includes(q) ||
+-        item.id.toLowerCase().includes(q)
+-    );
+-    const agentMatches = FLOCKS_AGENTS.filter(
+-      (a) =>
+-        q &&
+-        (a.name.toLowerCase().includes(q) ||
+-          a.role.zh.toLowerCase().includes(q))
+-    ).slice(0, 5);
+-    const toolMatches = FLOCKS_TOOLS.filter(
+-      (tl) =>
+-        q &&
+-        (tl.name.toLowerCase().includes(q) ||
+-          tl.category.toLowerCase().includes(q))
+-    ).slice(0, 6);
+-    return { navMatches, agentMatches, toolMatches };
+-  }, [commandQuery, t.nav]);
+-
+-  return (
+-    <SidebarProvider>
+-      <AppSidebar
+-        activeModule={activeModule}
+-        onSelectModule={setActiveModule}
+-        onOpenCommandPalette={() => setCommandOpen(true)}
+-        onOpenCopilot={() => setCopilotOpen((v) => !v)}
+-      />
+-
+-      <SidebarInset className="flex min-h-dvh flex-col bg-neutral-50/60 dark:bg-background">
+-        {/* 顶部栏 */}
+-        <SidebarInsetTopbar className="justify-between border-b border-border/60 bg-background/80 px-4 backdrop-blur-md">
+-          <div className="ml-auto flex items-center gap-2">
+-            <Button
+-              size="sm"
+-              variant={copilotOpen ? "primary" : "secondary"}
+-              leadingIcon={Sparkles}
+-              onClick={() => setCopilotOpen((v) => !v)}
+-            >
+-              {t.common.copilotToggle}
+-            </Button>
+-          </div>
+-        </SidebarInsetTopbar>
+-
+-        {/* 主工作区 + 右侧可折叠 AI 副驾抽屉 */}
+-        <div className="relative flex flex-1 overflow-hidden">
+-          <main className="flex-1 overflow-y-auto p-5 sm:p-8">
+-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+-              {/* 1. 控制台首页 */}
+-              {activeModule === "home" && (
+-                <>
+-                  <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#231924] via-[#131824] to-[#0f172a] p-7 text-white shadow-md sm:p-10">
+-                    <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-red-500/15 blur-3xl" />
+-                    <div className="pointer-events-none absolute -right-24 -bottom-24 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
+-
+-                    <div className="relative z-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
+-                      <div className="max-w-2xl space-y-3.5">
+-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-red-200 backdrop-blur-xs">
+-                          <Sparkles size={13} className="text-red-400" />
+-                          {t.hero.badge}
+-                        </span>
+-
+-                        <h1
+-                          className="text-4xl tracking-tight text-[#ef4444] sm:text-5xl"
+-                          style={{ fontVariationSettings: fontWeights.bold }}
+-                        >
+-                          {t.hero.title}
+-                        </h1>
+-
+-                        <h2
+-                          className="text-lg text-white sm:text-xl"
+-                          style={{ fontVariationSettings: fontWeights.semibold }}
+-                        >
+-                          {t.hero.headline}
+-                        </h2>
+-
+-                        <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
+-                          {t.hero.description}
+-                        </p>
+-                      </div>
+-
+-                      <div className="flex flex-wrap items-center gap-3">
+-                        <button
+-                          type="button"
+-                          onClick={() => setActiveModule("sessions")}
+-                          className="inline-flex items-center gap-2 rounded-xl bg-[#e11d48] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#be123c] cursor-pointer"
+-                        >
+-                          <span>{t.hero.setupGuide}</span>
+-                          <ChevronRight size={16} />
+-                        </button>
+-
+-                        <button
+-                          type="button"
+-                          onClick={() =>
+-                            launchInCopilot(
+-                              "执行快速外网攻击面与高危 CVE 巡检"
+-                            )
+-                          }
+-                          className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-xs transition-colors hover:bg-white/15 cursor-pointer"
+-                        >
+-                          <ExternalLink size={16} />
+-                          <span>{t.hero.openSource}</span>
+-                        </button>
+-                      </div>
+-                    </div>
+-                  </section>
+-
+-                  <Banner status="info" contrast="low" dismissible>
+-                    <BannerTitle>
+-                      红队授权门禁待确认：支付网关 v3 (SES-101) 发现跨租户越权高危漏洞
+-                    </BannerTitle>
+-                    <BannerDescription>
+-                      Web-Sentinel 已完成被动差分验证，正等待安全操作员批准只读 JWT kid 混淆探针。
+-                    </BannerDescription>
+-                    <BannerActions>
+-                      <BannerAction
+-                        variant="primary"
+-                        onClick={() => setActiveModule("sessions")}
+-                      >
+-                        前往审批
+-                      </BannerAction>
+-                    </BannerActions>
+-                  </Banner>
+-
+-                  {/* 3 个快捷入口卡片 */}
+-                  <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+-                    <button
+-                      type="button"
+-                      onClick={() => setActiveModule("sessions")}
+-                      className="group flex items-center gap-4 rounded-2xl border border-border/70 bg-card p-5 text-left shadow-2xs transition-all hover:border-blue-500/40 hover:shadow-md cursor-pointer"
+-                    >
+-                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
+-                        <MessageSquare size={20} />
+-                      </div>
+-                      <div className="min-w-0 flex-1">
+-                        <h3
+-                          className={cn(
+-                            typeClass("subtitle"),
+-                            "text-foreground"
+-                          )}
+-                          style={{ fontVariationSettings: fontWeights.semibold }}
+-                        >
+-                          {t.quickCards.sessionsTitle}
+-                        </h3>
+-                        <p
+-                          className={cn(
+-                            typeClass("caption"),
+-                            "mt-0.5 truncate [text-box:trim-both_cap_alphabetic] py-1 -my-1 text-muted-foreground"
+-                          )}
+-                        >
+-                          {t.quickCards.sessionsDesc}
+-                        </p>
+-                      </div>
+-                      <ChevronRight
+-                        size={16}
+-                        className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+-                      />
+-                    </button>
+-
+-                    <button
+-                      type="button"
+-                      onClick={() => setActiveModule("workflows")}
+-                      className="group flex items-center gap-4 rounded-2xl border border-border/70 bg-card p-5 text-left shadow-2xs transition-all hover:border-purple-500/40 hover:shadow-md cursor-pointer"
+-                    >
+-                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500">
+-                        <GitBranch size={20} />
+-                      </div>
+-                      <div className="min-w-0 flex-1">
+-                        <h3
+-                          className={cn(
+-                            typeClass("subtitle"),
+-                            "text-foreground"
+-                          )}
+-                          style={{ fontVariationSettings: fontWeights.semibold }}
+-                        >
+-                          {t.quickCards.workflowsTitle}
+-                        </h3>
+-                        <p
+-                          className={cn(
+-                            typeClass("caption"),
+-                            "mt-0.5 truncate [text-box:trim-both_cap_alphabetic] py-1 -my-1 text-muted-foreground"
+-                          )}
+-                        >
+-                          {t.quickCards.workflowsDesc}
+-                        </p>
+-                      </div>
+-                      <ChevronRight
+-                        size={16}
+-                        className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+-                      />
+-                    </button>
+-
+-                    <button
+-                      type="button"
+-                      onClick={() => setActiveModule("agents")}
+-                      className="group flex items-center gap-4 rounded-2xl border border-border/70 bg-card p-5 text-left shadow-2xs transition-all hover:border-emerald-500/40 hover:shadow-md cursor-pointer"
+-                    >
+-                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
+-                        <Bot size={20} />
+-                      </div>
+-                      <div className="min-w-0 flex-1">
+-                        <h3
+-                          className={cn(
+-                            typeClass("subtitle"),
+-                            "text-foreground"
+-                          )}
+-                          style={{ fontVariationSettings: fontWeights.semibold }}
+-                        >
+-                          {t.quickCards.agentsTitle}
+-                        </h3>
+-                        <p
+-                          className={cn(
+-                            typeClass("caption"),
+-                            "mt-0.5 truncate [text-box:trim-both_cap_alphabetic] py-1 -my-1 text-muted-foreground"
+-                          )}
+-                        >
+-                          {t.quickCards.agentsDesc}
+-                        </p>
+-                      </div>
+-                      <ChevronRight
+-                        size={16}
+-                        className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+-                      />
+-                    </button>
+-                  </section>
+-
+-                  {/* 8 宫格指标卡 */}
+-                  <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+-                    {FLOCKS_METRICS.map((card) => {
+-                      const IconComp = FLOCKS_ICON_MAP[card.icon];
+-                      const isStatusCard = card.labelKey === "systemStatus";
+-                      return (
+-                        <div
+-                          key={card.id}
+-                          onClick={() =>
+-                            card.targetModule &&
+-                            setActiveModule(card.targetModule)
+-                          }
+-                          className={cn(
+-                            "flex flex-col justify-between rounded-2xl border border-border/70 bg-card p-5 shadow-2xs transition-all",
+-                            card.targetModule &&
+-                              "cursor-pointer hover:border-border hover:shadow-sm"
+-                          )}
+-                        >
+-                          <div className="flex items-center justify-between">
+-                            <span
+-                              className={cn(
+-                                typeClass("caption"),
+-                                "text-muted-foreground"
+-                              )}
+-                            >
+-                              {t.metrics[card.labelKey]}
+-                            </span>
+-                            <span
+-                              className={cn(
+-                                "flex size-7 items-center justify-center rounded-lg",
+-                                ACCENT_ICON_STYLES[card.accentColor]
+-                              )}
+-                            >
+-                              <IconComp size={15} />
+-                            </span>
+-                          </div>
+-
+-                          <div className="mt-4">
+-                            <p
+-                              className={cn(
+-                                "text-3xl tracking-tight tabular-nums",
+-                                isStatusCard
+-                                  ? "text-emerald-600 dark:text-emerald-400"
+-                                  : "text-foreground"
+-                              )}
+-                              style={{ fontVariationSettings: fontWeights.bold }}
+-                            >
+-                              {card.value}
+-                            </p>
+-                            {card.subtextKey && (
+-                              <p
+-                                className={cn(
+-                                  typeClass("caption"),
+-                                  "mt-1 text-muted-foreground"
+-                                )}
+-                              >
+-                                {t.metrics[card.subtextKey]}
+-                              </p>
+-                            )}
+-                          </div>
+-                        </div>
+-                      );
+-                    })}
+-                  </section>
+-                </>
+-              )}
+-
+-              {/* 2. 渗透会话视图 */}
+-              {activeModule === "sessions" && (
+-                <div className="h-[calc(100dvh-7.5rem)] min-h-[560px]">
+-                  <SecOpsChatbot mode="workspace" />
+-                </div>
+-              )}
+-
+-              {/* 3. 安全智能体视图 [17] */}
+-              {activeModule === "agents" && (
+-                <div className="space-y-5">
+-                  <div className="flex flex-wrap items-center justify-between gap-3">
+-                    <div>
+-                      <h1
+-                        className={cn(typeClass("title"), "text-foreground")}
+-                        style={{ fontVariationSettings: fontWeights.semibold }}
+-                      >
+-                        {t.nav.agents} ({FLOCKS_AGENTS.length})
+-                      </h1>
+-                      <p
+-                        className={cn(
+-                          typeClass("caption"),
+-                          "text-muted-foreground"
+-                        )}
+-                      >
+-                        17 个专业红队与安全运营智能体，支持独立模型路由与工具沙箱绑定
+-                      </p>
+-                    </div>
+-                    <div className="flex flex-wrap gap-1.5">
+-                      {(
+-                        [
+-                          "all",
+-                          "recon",
+-                          "exploit",
+-                          "cloud",
+-                          "triage",
+-                          "dfir",
+-                          "report",
+-                        ] as const
+-                      ).map((cat) => (
+-                        <Button
+-                          key={cat}
+-                          size="sm"
+-                          variant={
+-                            agentCategory === cat ? "primary" : "secondary"
+-                          }
+-                          onClick={() => setAgentCategory(cat)}
+-                        >
+-                          {AGENT_CATEGORY_LABELS[cat]}
+-                        </Button>
+-                      ))}
+-                    </div>
+-                  </div>
+-
+-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+-                    {filteredAgents.map((agent) => (
+-                      <div
+-                        key={agent.id}
+-                        className="flex flex-col justify-between rounded-2xl border border-border/75 bg-card p-5 shadow-2xs"
+-                      >
+-                        <div>
+-                          <div className="flex items-center justify-between gap-2">
+-                            <span className="font-mono text-xs text-muted-foreground">
+-                              {agent.id.toUpperCase()}
+-                            </span>
+-                            <Badge
+-                              size="sm"
+-                              variant="dot"
+-                              color={
+-                                agent.status === "online"
+-                                  ? "green"
+-                                  : agent.status === "busy"
+-                                    ? "orange"
+-                                    : "gray"
+-                              }
+-                            >
+-                              {agent.status === "online"
+-                                ? "在线"
+-                                : agent.status === "busy"
+-                                  ? "执行中"
+-                                  : "待命"}
+-                            </Badge>
+-                          </div>
+-                          <h3
+-                            className={cn(
+-                              typeClass("subtitle"),
+-                              "mt-2 text-foreground"
+-                            )}
+-                            style={{
+-                              fontVariationSettings: fontWeights.semibold,
+-                            }}
+-                          >
+-                            {agent.name}
+-                          </h3>
+-                          <p
+-                            className={cn(
+-                              typeClass("caption"),
+-                              "mt-1 text-muted-foreground"
+-                            )}
+-                          >
+-                            {agent.role.zh}
+-                          </p>
+-                        </div>
+-
+-                        <div className="mt-4 space-y-3 border-t border-border/60 pt-3">
+-                          <div
+-                            className={cn(
+-                              typeClass("caption"),
+-                              "flex items-center justify-between text-muted-foreground"
+-                            )}
+-                          >
+-                            <span>{agent.model}</span>
+-                            <span className="tabular-nums">
+-                              {agent.latencyMs}ms · 成功率 {agent.successRate}
+-                            </span>
+-                          </div>
+-                          <div className="flex items-center justify-between">
+-                            <Badge size="sm" variant="solid" color="purple">
+-                              {agent.toolsCount} 个工具
+-                            </Badge>
+-                            <Button
+-                              size="sm"
+-                              variant="secondary"
+-                              leadingIcon={Play}
+-                              onClick={() =>
+-                                launchInCopilot(
+-                                  `调度 @${agent.name} 执行专项安全评估`
+-                                )
+-                              }
+-                            >
+-                              {t.common.launch}
+-                            </Button>
+-                          </div>
+-                        </div>
+-                      </div>
+-                    ))}
+-                  </div>
+-                </div>
+-              )}
+-
+-              {/* 4. 工具武库视图 [149] */}
+-              {activeModule === "tools" && (
+-                <div className="space-y-5">
+-                  <div className="flex flex-wrap items-center justify-between gap-3">
+-                    <div>
+-                      <h1
+-                        className={cn(typeClass("title"), "text-foreground")}
+-                        style={{ fontVariationSettings: fontWeights.semibold }}
+-                      >
+-                        {t.nav.tools} ({FLOCKS_TOOLS.length})
+-                      </h1>
+-                      <p
+-                        className={cn(
+-                          typeClass("caption"),
+-                          "text-muted-foreground"
+-                        )}
+-                      >
+-                        149 个沙箱化渗透测试与取证工具
+-                      </p>
+-                    </div>
+-                    <input
+-                      type="search"
+-                      value={toolSearch}
+-                      onChange={(e) => setToolSearch(e.target.value)}
+-                      placeholder="筛选 149 个工具名称或协议..."
+-                      className={cn(
+-                        typeClass("caption"),
+-                        "h-8 w-64 rounded-lg border border-border bg-background px-3 text-foreground outline-none focus:ring-1 focus:ring-blue-500"
+-                      )}
+-                    />
+-                  </div>
+-
+-                  <div className="flex flex-wrap gap-1.5">
+-                    {(
+-                      [
+-                        "all",
+-                        "Recon",
+-                        "Web",
+-                        "Network",
+-                        "Cloud",
+-                        "AD",
+-                        "Crypto",
+-                        "DFIR",
+-                        "OSINT",
+-                      ] as const
+-                    ).map((cat) => (
+-                      <Button
+-                        key={cat}
+-                        size="sm"
+-                        variant={toolCategory === cat ? "primary" : "secondary"}
+-                        onClick={() => setToolCategory(cat)}
+-                      >
+-                        {TOOL_CATEGORY_LABELS[cat]}
+-                      </Button>
+-                    ))}
+-                  </div>
+-
+-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+-                    {filteredTools.map((tool: FlocksTool) => (
+-                      <div
+-                        key={tool.id}
+-                        className="flex flex-col justify-between rounded-xl border border-border/70 bg-card p-4 shadow-2xs"
+-                      >
+-                        <div>
+-                          <div className="flex items-center justify-between gap-2">
+-                            <span className="font-mono text-sm font-semibold text-foreground">
+-                              {tool.name}
+-                            </span>
+-                            <Badge
+-                              size="sm"
+-                              variant="dot"
+-                              color={
+-                                tool.riskLevel === "high"
+-                                  ? "red"
+-                                  : tool.riskLevel === "medium"
+-                                    ? "orange"
+-                                    : "green"
+-                              }
+-                            >
+-                              {tool.status}
+-                            </Badge>
+-                          </div>
+-                          <p
+-                            className={cn(
+-                              typeClass("caption"),
+-                              "mt-1.5 text-muted-foreground"
+-                            )}
+-                          >
+-                            {tool.description}
+-                          </p>
+-                        </div>
+-                        <div
+-                          className={cn(
+-                            typeClass("micro"),
+-                            "mt-3 flex items-center justify-between border-t border-border/50 pt-2.5 text-muted-foreground"
+-                          )}
+-                        >
+-                          <span>
+-                            {TOOL_CATEGORY_LABELS[tool.category]} ·{" "}
+-                            {tool.runtime.toUpperCase()}
+-                          </span>
+-                          <button
+-                            type="button"
+-                            onClick={() =>
+-                              launchInCopilot(
+-                                `在隔离沙箱中运行工具 ${tool.name} (${tool.runtime})`
+-                              )
+-                            }
+-                            className="font-medium text-blue-500 hover:underline cursor-pointer"
+-                          >
+-                            {t.common.launch} →
+-                          </button>
+-                        </div>
+-                      </div>
+-                    ))}
+-                  </div>
+-                </div>
+-              )}
+-
+-              {/* 5. 自动化编排视图 [4] */}
+-              {activeModule === "workflows" && (
+-                <div className="space-y-4">
+-                  <h1
+-                    className={cn(typeClass("title"), "text-foreground")}
+-                    style={{ fontVariationSettings: fontWeights.semibold }}
+-                  >
+-                    {t.nav.workflows} ({FLOCKS_WORKFLOWS.length})
+-                  </h1>
+-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+-                    {FLOCKS_WORKFLOWS.map((wf) => (
+-                      <div
+-                        key={wf.id}
+-                        className="flex flex-col justify-between rounded-2xl border border-border/75 bg-card p-5 shadow-2xs"
+-                      >
+-                        <div>
+-                          <div className="flex items-center justify-between">
+-                            <Badge
+-                              size="sm"
+-                              variant="dot"
+-                              color={wf.status === "active" ? "green" : "gray"}
+-                            >
+-                              {wf.status === "active" ? "已启用" : "已暂停"} ·{" "}
+-                              {wf.trigger}
+-                            </Badge>
+-                            <span
+-                              className={cn(
+-                                typeClass("caption"),
+-                                "text-muted-foreground"
+-                              )}
+-                            >
+-                              {wf.nodesCount} 个节点 · 平均耗时 {wf.avgDuration}
+-                            </span>
+-                          </div>
+-                          <h3
+-                            className={cn(
+-                              typeClass("subtitle"),
+-                              "mt-2.5 text-foreground"
+-                            )}
+-                            style={{
+-                              fontVariationSettings: fontWeights.semibold,
+-                            }}
+-                          >
+-                            {wf.name.zh}
+-                          </h3>
+-                          <p
+-                            className={cn(
+-                              typeClass("caption"),
+-                              "mt-1 text-muted-foreground"
+-                            )}
+-                          >
+-                            {wf.description.zh}
+-                          </p>
+-                        </div>
+-                        <div
+-                          className={cn(
+-                            typeClass("caption"),
+-                            "mt-4 flex items-center justify-between border-t border-border/60 pt-3"
+-                          )}
+-                        >
+-                          <span className="text-muted-foreground">
+-                            上次执行：{wf.lastRun}
+-                          </span>
+-                          <Button
+-                            size="sm"
+-                            variant="primary"
+-                            leadingIcon={Play}
+-                            onClick={() =>
+-                              launchInCopilot(
+-                                `触发工作流「${wf.name.zh}」并实时订阅节点遥测日志`
+-                              )
+-                            }
+-                          >
+-                            启动流水线
+-                          </Button>
+-                        </div>
+-                      </div>
+-                    ))}
+-                  </div>
+-                </div>
+-              )}
+-
+-              {/* 6. 战术技能包视图 [15] */}
+-              {activeModule === "skills" && (
+-                <div className="space-y-4">
+-                  <div className="flex flex-wrap items-center justify-between gap-2">
+-                    <h1
+-                      className={cn(typeClass("title"), "text-foreground")}
+-                      style={{ fontVariationSettings: fontWeights.semibold }}
+-                    >
+-                      {t.nav.skills} ({FLOCKS_SKILLS.length})
+-                    </h1>
+-                    <div className="flex flex-wrap gap-1.5">
+-                      {(
+-                        [
+-                          "all",
+-                          "web",
+-                          "cloud",
+-                          "network",
+-                          "ad",
+-                          "code",
+-                          "dfir",
+-                        ] as const
+-                      ).map((dom) => (
+-                        <Button
+-                          key={dom}
+-                          size="sm"
+-                          variant={
+-                            skillFilter === dom ? "primary" : "secondary"
+-                          }
+-                          onClick={() => setSkillFilter(dom)}
+-                        >
+-                          {SKILL_DOMAIN_LABELS[dom]}
+-                        </Button>
+-                      ))}
+-                    </div>
+-                  </div>
+-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+-                    {FLOCKS_SKILLS.filter(
+-                      (s) => skillFilter === "all" || s.domain === skillFilter
+-                    ).map((sk) => (
+-                      <div
+-                        key={sk.id}
+-                        className="rounded-xl border border-border/75 bg-card p-4 shadow-2xs"
+-                      >
+-                        <div className="flex items-center justify-between">
+-                          <Badge size="sm" variant="solid" color="blue">
+-                            {SKILL_DOMAIN_LABELS[sk.domain]}
+-                          </Badge>
+-                          <span className="font-mono text-xs text-muted-foreground">
+-                            {sk.version}
+-                          </span>
+-                        </div>
+-                        <h3 className="mt-2 font-mono text-sm font-semibold text-foreground">
+-                          {sk.name}
+-                        </h3>
+-                        <p
+-                          className={cn(
+-                            typeClass("caption"),
+-                            "mt-1 text-muted-foreground"
+-                          )}
+-                        >
+-                          {sk.title.zh}
+-                        </p>
+-                      </div>
+-                    ))}
+-                  </div>
+-                </div>
+-              )}
+-
+-              {/* 7. 任务调度视图 */}
+-              {activeModule === "tasks" && (
+-                <div className="space-y-4">
+-                  <h1
+-                    className={cn(typeClass("title"), "text-foreground")}
+-                    style={{ fontVariationSettings: fontWeights.semibold }}
+-                  >
+-                    {t.nav.tasks} ({FLOCKS_TASKS.length})
+-                  </h1>
+-                  <div className="space-y-3">
+-                    {FLOCKS_TASKS.map((tsk) => (
+-                      <div
+-                        key={tsk.id}
+-                        className="flex flex-col justify-between gap-3 rounded-xl border border-border/75 bg-card p-4 sm:flex-row sm:items-center"
+-                      >
+-                        <div className="space-y-1">
+-                          <div className="flex items-center gap-2">
+-                            <Badge
+-                              size="sm"
+-                              variant="solid"
+-                              color={
+-                                tsk.severity === "critical"
+-                                  ? "red"
+-                                  : tsk.severity === "high"
+-                                    ? "orange"
+-                                    : "blue"
+-                              }
+-                            >
+-                              {tsk.severity === "critical"
+-                                ? "严重"
+-                                : tsk.severity === "high"
+-                                  ? "高危"
+-                                  : tsk.severity === "medium"
+-                                    ? "中危"
+-                                    : "低危"}
+-                            </Badge>
+-                            <span
+-                              className={cn(
+-                                typeClass("body"),
+-                                "text-foreground"
+-                              )}
+-                              style={{
+-                                fontVariationSettings: fontWeights.semibold,
+-                              }}
+-                            >
+-                              {tsk.title.zh}
+-                            </span>
+-                          </div>
+-                          <p
+-                            className={cn(
+-                              typeClass("caption"),
+-                              "text-muted-foreground"
+-                            )}
+-                          >
+-                            {tsk.workflow} · 启动于 {tsk.startedAt}
+-                          </p>
+-                        </div>
+-                        <div className="flex items-center gap-3">
+-                          <div className="h-2 w-28 overflow-hidden rounded-full bg-muted">
+-                            <div
+-                              className="h-full bg-blue-500 transition-all"
+-                              style={{ width: `${tsk.progress}%` }}
+-                            />
+-                          </div>
+-                          <span className="w-10 text-right font-mono text-xs">
+-                            {tsk.progress}%
+-                          </span>
+-                        </div>
+-                      </div>
+-                    ))}
+-                  </div>
+-                </div>
+-              )}
+-
+-              {/* 8. 证据工作区视图 */}
+-              {activeModule === "workspace" && (
+-                <div className="space-y-4">
+-                  <h1
+-                    className={cn(typeClass("title"), "text-foreground")}
+-                    style={{ fontVariationSettings: fontWeights.semibold }}
+-                  >
+-                    {t.nav.workspace} ({FLOCKS_WORKSPACE_ITEMS.length})
+-                  </h1>
+-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+-                    {FLOCKS_WORKSPACE_ITEMS.map((item) => (
+-                      <div
+-                        key={item.id}
+-                        className="flex items-center justify-between rounded-xl border border-border/75 bg-card p-4"
+-                      >
+-                        <div>
+-                          <p className="font-mono text-sm font-semibold text-foreground">
+-                            {item.name}
+-                          </p>
+-                          <p className="mt-1 font-mono text-xs text-muted-foreground">
+-                            {item.size} · {item.updatedAt} · {item.hash}
+-                          </p>
+-                        </div>
+-                        <Badge size="sm" variant="dot" color="purple">
+-                          {item.kind}
+-                        </Badge>
+-                      </div>
+-                    ))}
+-                  </div>
+-                </div>
+-              )}
+-
+-              {/* 9. 推理模型视图 [6] */}
+-              {activeModule === "models" && (
+-                <div className="space-y-4">
+-                  <h1
+-                    className={cn(typeClass("title"), "text-foreground")}
+-                    style={{ fontVariationSettings: fontWeights.semibold }}
+-                  >
+-                    {t.nav.models} ({FLOCKS_MODELS.length})
+-                  </h1>
+-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+-                    {FLOCKS_MODELS.map((md) => (
+-                      <div
+-                        key={md.id}
+-                        className="rounded-2xl border border-border/75 bg-card p-5 shadow-2xs"
+-                      >
+-                        <div className="flex items-center justify-between">
+-                          <span
+-                            className={cn(
+-                              typeClass("caption"),
+-                              "text-muted-foreground"
+-                            )}
+-                          >
+-                            {md.provider}
+-                          </span>
+-                          <Badge
+-                            size="sm"
+-                            variant="dot"
+-                            color={md.status === "healthy" ? "green" : "orange"}
+-                          >
+-                            {md.status === "healthy" ? "运行正常" : "负载较高"}
+-                          </Badge>
+-                        </div>
+-                        <h3
+-                          className={cn(
+-                            typeClass("subtitle"),
+-                            "mt-2 text-foreground"
+-                          )}
+-                          style={{ fontVariationSettings: fontWeights.semibold }}
+-                        >
+-                          {md.name}
+-                        </h3>
+-                        <p
+-                          className={cn(
+-                            typeClass("caption"),
+-                            "mt-1 text-muted-foreground"
+-                          )}
+-                        >
+-                          {md.role.zh}
+-                        </p>
+-                        <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 font-mono text-xs text-muted-foreground">
+-                          <span>上下文: {md.contextWindow}</span>
+-                          <span>{md.latencyMs}ms</span>
+-                        </div>
+-                      </div>
+-                    ))}
+-                  </div>
+-                </div>
+-              )}
+-
+-              {/* 10. 协同通道视图 */}
+-              {activeModule === "channels" && (
+-                <div className="space-y-4">
+-                  <h1
+-                    className={cn(typeClass("title"), "text-foreground")}
+-                    style={{ fontVariationSettings: fontWeights.semibold }}
+-                  >
+-                    {t.nav.channels} ({FLOCKS_CHANNELS.length})
+-                  </h1>
+-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+-                    {FLOCKS_CHANNELS.map((ch) => (
+-                      <div
+-                        key={ch.id}
+-                        className="flex items-center justify-between rounded-xl border border-border/75 bg-card p-4"
+-                      >
+-                        <div>
+-                          <div className="flex items-center gap-2">
+-                            <Badge size="sm" variant="solid" color="blue">
+-                              {ch.type}
+-                            </Badge>
+-                            <span
+-                              className={cn(
+-                                typeClass("body"),
+-                                "text-foreground"
+-                              )}
+-                              style={{
+-                                fontVariationSettings: fontWeights.semibold,
+-                              }}
+-                            >
+-                              {ch.name}
+-                            </span>
+-                          </div>
+-                          <p
+-                            className={cn(
+-                              typeClass("caption"),
+-                              "mt-1 text-muted-foreground"
+-                            )}
+-                          >
+-                            {ch.target} · 今日事件 {ch.eventsToday} 条
+-                          </p>
+-                        </div>
+-                        <Badge
+-                          size="sm"
+-                          variant="dot"
+-                          color={ch.status === "connected" ? "green" : "gray"}
+-                        >
+-                          {ch.status === "connected" ? "已连接" : "已暂停"}
+-                        </Badge>
+-                      </div>
+-                    ))}
+-                  </div>
+-                </div>
+-              )}
+-            </div>
+-          </main>
+-
+-          {/* 全局右侧可折叠 AI 副驾抽屉 */}
+-          {copilotOpen && (
+-            <aside className="w-full max-w-md shrink-0 border-l border-border bg-background shadow-2xl sm:w-[420px]">
+-              <SecOpsChatbot
+-                mode="drawer"
+-                initialPrompt={copilotPrompt}
+-                onCloseDrawer={() => setCopilotOpen(false)}
+-              />
+-            </aside>
+-          )}
+-        </div>
+-      </SidebarInset>
+-
+-      {/* 全局 ⌘K 命令面板 */}
+-      <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
+-        <DialogContent size="lg" className="overflow-hidden p-0">
+-          <div className="border-b border-border px-4 py-3">
+-            <DialogTitle
+-              className={cn(typeClass("subtitle"))}
+-              style={{ fontVariationSettings: fontWeights.semibold }}
+-            >
+-              {t.common.commandPaletteTitle}
+-            </DialogTitle>
+-            <DialogDescription className="sr-only">
+-              跨 10 个模块、17 个智能体与 149 个安全工具快速跳转
+-            </DialogDescription>
+-            <div className="mt-2 flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
+-              <Search size={15} className="text-muted-foreground" />
+-              <input
+-                type="text"
+-                autoFocus
+-                value={commandQuery}
+-                onChange={(e) => setCommandQuery(e.target.value)}
+-                placeholder={t.common.searchPlaceholder}
+-                className={cn(
+-                  typeClass("body"),
+-                  "w-full bg-transparent text-foreground outline-none"
+-                )}
+-              />
+-            </div>
+-          </div>
+-
+-          <div
+-            className={cn(
+-              typeClass("caption"),
+-              "max-h-80 space-y-4 overflow-y-auto p-3"
+-            )}
+-          >
+-            <div>
+-              <p
+-                className="px-2 pb-1 text-muted-foreground"
+-                style={{ fontVariationSettings: fontWeights.semibold }}
+-              >
+-                控制台模块 ({commandResults.navMatches.length})
+-              </p>
+-              <div className="space-y-1">
+-                {commandResults.navMatches.map((nav) => {
+-                  const IconComp = FLOCKS_ICON_MAP[nav.icon];
+-                  return (
+-                    <button
+-                      key={nav.id}
+-                      type="button"
+-                      onClick={() => {
+-                        setActiveModule(nav.id);
+-                        setCommandOpen(false);
+-                      }}
+-                      className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted cursor-pointer"
+-                    >
+-                      <span className="flex items-center gap-2 font-medium text-foreground">
+-                        <IconComp size={14} />
+-                        {t.nav[nav.id]}
+-                      </span>
+-                      {nav.count !== undefined && (
+-                        <Badge size="sm" variant="dot" color="gray">
+-                          {nav.count}
+-                        </Badge>
+-                      )}
+-                    </button>
+-                  );
+-                })}
+-              </div>
+-            </div>
+-
+-            {commandResults.agentMatches.length > 0 && (
+-              <div>
+-                <p
+-                  className="px-2 pb-1 text-muted-foreground"
+-                  style={{ fontVariationSettings: fontWeights.semibold }}
+-                >
+-                  安全智能体
+-                </p>
+-                {commandResults.agentMatches.map((ag) => (
+-                  <button
+-                    key={ag.id}
+-                    type="button"
+-                    onClick={() => {
+-                      setActiveModule("agents");
+-                      setCommandOpen(false);
+-                    }}
+-                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted cursor-pointer"
+-                  >
+-                    <span className="font-medium text-foreground">
+-                      <ShieldCheck size={13} className="mr-1.5 inline" />
+-                      {ag.name}
+-                    </span>
+-                    <span className="text-muted-foreground">{ag.role.zh}</span>
+-                  </button>
+-                ))}
+-              </div>
+-            )}
+-
+-            {commandResults.toolMatches.length > 0 && (
+-              <div>
+-                <p
+-                  className="px-2 pb-1 text-muted-foreground"
+-                  style={{ fontVariationSettings: fontWeights.semibold }}
+-                >
+-                  沙箱工具
+-                </p>
+-                {commandResults.toolMatches.map((tl) => (
+-                  <button
+-                    key={tl.id}
+-                    type="button"
+-                    onClick={() => {
+-                      setActiveModule("tools");
+-                      setToolSearch(tl.name);
+-                      setCommandOpen(false);
+-                    }}
+-                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted cursor-pointer"
+-                  >
+-                    <span className="font-mono font-medium text-foreground">
+-                      <Terminal size={13} className="mr-1.5 inline" />
+-                      {tl.name}
+-                    </span>
+-                    <span className="text-muted-foreground">
+-                      {TOOL_CATEGORY_LABELS[tl.category]} · {tl.runtime}
+-                    </span>
+-                  </button>
+-                ))}
+-              </div>
+-            )}
+-          </div>
+-        </DialogContent>
+-      </Dialog>
+-    </SidebarProvider>
+-  );
++import { redirect } from "next/navigation"
++import { currentSession } from "@/lib/server/platform-auth"
++import FlocksPage from "@/components/platform/flocks-page"
++export default async function Page() {
++  if (!(await currentSession())) redirect("/login")
++  return <FlocksPage />
+ }
+--- /dev/null
++++ b/components/platform/flocks-page.tsx
+@@ -0,0 +1,1179 @@
++"use client"
++
++import { useState, useEffect, useMemo } from "react"
++import {
++  Sparkles,
++  ChevronRight,
++  Search,
++  Bot,
++  GitBranch,
++  MessageSquare,
++  ShieldCheck,
++  Terminal,
++  Play,
++  ExternalLink,
++} from "lucide-react"
++import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
++import {
++  Banner,
++  BannerTitle,
++  BannerDescription,
++  BannerActions,
++  BannerAction,
++} from "@/components/ui/banner"
++import {
++  Dialog,
++  DialogContent,
++  DialogTitle,
++  DialogDescription,
++} from "@/components/ui/dialog"
++import { Badge } from "@/components/ui/badge"
++import { Button } from "@/components/ui/button"
++import { typeClass } from "@/lib/size-context"
++import { fontWeights } from "@/lib/font-weight"
++import {
++  AppSidebar,
++  FLOCKS_ICON_MAP,
++} from "@/components/sidebar-app/app-sidebar"
++import { SidebarInsetTopbar } from "@/components/sidebar-app/inset-topbar"
++import { ModelSettings } from "@/components/platform/model-settings"
++import { LogoutButton } from "@/components/platform/logout-button"
++import { SecOpsChatbot } from "@/components/chat/secops-chatbot"
++import {
++  zhCopy,
++  FLOCKS_NAV_ITEMS,
++  FLOCKS_METRICS,
++  FLOCKS_AGENTS,
++  FLOCKS_WORKFLOWS,
++  FLOCKS_SKILLS,
++  FLOCKS_TOOLS,
++  FLOCKS_CHANNELS,
++  FLOCKS_TASKS,
++  FLOCKS_WORKSPACE_ITEMS,
++  type FlocksModuleId,
++  type FlocksTool,
++} from "@/lib/flocks-data"
++import { cn } from "@/lib/utils"
++
++const ACCENT_ICON_STYLES: Record<string, string> = {
++  purple: "text-purple-500 bg-purple-500/10",
++  teal: "text-teal-500 bg-teal-500/10",
++  green: "text-emerald-500 bg-emerald-500/10",
++  orange: "text-orange-500 bg-orange-500/10",
++  amber: "text-amber-500 bg-amber-500/10",
++  indigo: "text-indigo-500 bg-indigo-500/10",
++  pink: "text-pink-500 bg-pink-500/10",
++  emerald: "text-emerald-500 bg-emerald-500/10",
++}
++
++const AGENT_CATEGORY_LABELS: Record<string, string> = {
++  all: "全部",
++  recon: "资产测绘",
++  exploit: "漏洞验证",
++  cloud: "云安全",
++  triage: "告警研判",
++  dfir: "流量取证",
++  report: "证据报告",
++}
++
++const SKILL_DOMAIN_LABELS: Record<string, string> = {
++  all: "全部",
++  web: "Web 审计",
++  cloud: "云原生",
++  network: "网络协议",
++  ad: "内网域控",
++  code: "代码审计",
++  dfir: "应急取证",
++}
++
++const TOOL_CATEGORY_LABELS: Record<string, string> = {
++  all: "全部",
++  Recon: "资产测绘",
++  Web: "Web 渗透",
++  Network: "网络扫描",
++  Cloud: "云原生",
++  AD: "域控安全",
++  Crypto: "密码分析",
++  DFIR: "取证分析",
++  OSINT: "开源情报",
++}
++
++export default function FlocksPage() {
++  const [activeModule, setActiveModule] = useState<FlocksModuleId>("home")
++  const [copilotOpen, setCopilotOpen] = useState(false)
++  const [copilotPrompt, setCopilotPrompt] = useState<string | undefined>(
++    undefined
++  )
++  const [commandOpen, setCommandOpen] = useState(false)
++  const [commandQuery, setCommandQuery] = useState("")
++
++  const [agentCategory, setAgentCategory] = useState<string>("all")
++  const [toolCategory, setToolCategory] = useState<string>("all")
++  const [toolSearch, setToolSearch] = useState("")
++  const [skillFilter, setSkillFilter] = useState<string>("all")
++
++  const t = zhCopy
++
++  useEffect(() => {
++    const onKeyDown = (e: KeyboardEvent) => {
++      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
++        e.preventDefault()
++        setCommandOpen((prev) => !prev)
++      }
++    }
++    window.addEventListener("keydown", onKeyDown)
++    return () => window.removeEventListener("keydown", onKeyDown)
++  }, [])
++
++  const launchInCopilot = (promptText: string) => {
++    setCopilotPrompt(promptText)
++    setCopilotOpen(true)
++  }
++
++  const filteredAgents = useMemo(() => {
++    if (agentCategory === "all") return FLOCKS_AGENTS
++    return FLOCKS_AGENTS.filter((a) => a.category === agentCategory)
++  }, [agentCategory])
++
++  const filteredTools = useMemo(() => {
++    return FLOCKS_TOOLS.filter((tool) => {
++      const matchesCat =
++        toolCategory === "all" || tool.category === toolCategory
++      const q = toolSearch.trim().toLowerCase()
++      const matchesQuery =
++        !q ||
++        tool.name.toLowerCase().includes(q) ||
++        tool.description.toLowerCase().includes(q) ||
++        tool.runtime.toLowerCase().includes(q)
++      return matchesCat && matchesQuery
++    })
++  }, [toolCategory, toolSearch])
++
++  const commandResults = useMemo(() => {
++    const q = commandQuery.trim().toLowerCase()
++    const navMatches = FLOCKS_NAV_ITEMS.filter(
++      (item) =>
++        !q ||
++        t.nav[item.id].toLowerCase().includes(q) ||
++        item.id.toLowerCase().includes(q)
++    )
++    const agentMatches = FLOCKS_AGENTS.filter(
++      (a) =>
++        q &&
++        (a.name.toLowerCase().includes(q) ||
++          a.role.zh.toLowerCase().includes(q))
++    ).slice(0, 5)
++    const toolMatches = FLOCKS_TOOLS.filter(
++      (tl) =>
++        q &&
++        (tl.name.toLowerCase().includes(q) ||
++          tl.category.toLowerCase().includes(q))
++    ).slice(0, 6)
++    return { navMatches, agentMatches, toolMatches }
++  }, [commandQuery, t.nav])
++
++  return (
++    <SidebarProvider>
++      <AppSidebar
++        activeModule={activeModule}
++        onSelectModule={setActiveModule}
++        onOpenCommandPalette={() => setCommandOpen(true)}
++        onOpenCopilot={() => setCopilotOpen((v) => !v)}
++      />
++
++      <SidebarInset className="flex min-h-dvh flex-col bg-neutral-50/60 dark:bg-background">
++        {/* 顶部栏 */}
++        <SidebarInsetTopbar className="justify-between border-b border-border/60 bg-background/80 px-4 backdrop-blur-md">
++          <div className="ml-auto flex items-center gap-2">
++            <Button
++              size="sm"
++              variant={copilotOpen ? "primary" : "secondary"}
++              leadingIcon={Sparkles}
++              onClick={() => setCopilotOpen((v) => !v)}
++            >
++              {t.common.copilotToggle}
++            </Button>
++            <LogoutButton />
++          </div>
++        </SidebarInsetTopbar>
++
++        {/* 主工作区 + 右侧可折叠 AI 副驾抽屉 */}
++        <div className="relative flex flex-1 overflow-hidden">
++          <main className="flex-1 overflow-y-auto p-5 sm:p-8">
++            <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
++              {/* 1. 控制台首页 */}
++              {activeModule === "home" && (
++                <>
++                  <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#231924] via-[#131824] to-[#0f172a] p-7 text-white shadow-md sm:p-10">
++                    <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-red-500/15 blur-3xl" />
++                    <div className="pointer-events-none absolute -right-24 -bottom-24 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
++
++                    <div className="relative z-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
++                      <div className="max-w-2xl space-y-3.5">
++                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-red-200 backdrop-blur-xs">
++                          <Sparkles size={13} className="text-red-400" />
++                          {t.hero.badge}
++                        </span>
++
++                        <h1
++                          className="text-4xl tracking-tight text-[#ef4444] sm:text-5xl"
++                          style={{ fontVariationSettings: fontWeights.bold }}
++                        >
++                          {t.hero.title}
++                        </h1>
++
++                        <h2
++                          className="text-lg text-white sm:text-xl"
++                          style={{
++                            fontVariationSettings: fontWeights.semibold,
++                          }}
++                        >
++                          {t.hero.headline}
++                        </h2>
++
++                        <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
++                          {t.hero.description}
++                        </p>
++                      </div>
++
++                      <div className="flex flex-wrap items-center gap-3">
++                        <button
++                          type="button"
++                          onClick={() => setActiveModule("sessions")}
++                          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#e11d48] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#be123c]"
++                        >
++                          <span>{t.hero.setupGuide}</span>
++                          <ChevronRight size={16} />
++                        </button>
++
++                        <button
++                          type="button"
++                          onClick={() =>
++                            launchInCopilot("执行快速外网攻击面与高危 CVE 巡检")
++                          }
++                          className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-xs transition-colors hover:bg-white/15"
++                        >
++                          <ExternalLink size={16} />
++                          <span>{t.hero.openSource}</span>
++                        </button>
++                      </div>
++                    </div>
++                  </section>
++
++                  <Banner status="info" contrast="low" dismissible>
++                    <BannerTitle>
++                      红队授权门禁待确认：支付网关 v3 (SES-101)
++                      发现跨租户越权高危漏洞
++                    </BannerTitle>
++                    <BannerDescription>
++                      Web-Sentinel 已完成被动差分验证，正等待安全操作员批准只读
++                      JWT kid 混淆探针。
++                    </BannerDescription>
++                    <BannerActions>
++                      <BannerAction
++                        variant="primary"
++                        onClick={() => setActiveModule("sessions")}
++                      >
++                        前往审批
++                      </BannerAction>
++                    </BannerActions>
++                  </Banner>
++
++                  {/* 3 个快捷入口卡片 */}
++                  <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
++                    <button
++                      type="button"
++                      onClick={() => setActiveModule("sessions")}
++                      className="group flex cursor-pointer items-center gap-4 rounded-2xl border border-border/70 bg-card p-5 text-left shadow-2xs transition-all hover:border-blue-500/40 hover:shadow-md"
++                    >
++                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
++                        <MessageSquare size={20} />
++                      </div>
++                      <div className="min-w-0 flex-1">
++                        <h3
++                          className={cn(
++                            typeClass("subtitle"),
++                            "text-foreground"
++                          )}
++                          style={{
++                            fontVariationSettings: fontWeights.semibold,
++                          }}
++                        >
++                          {t.quickCards.sessionsTitle}
++                        </h3>
++                        <p
++                          className={cn(
++                            typeClass("caption"),
++                            "-my-1 mt-0.5 truncate py-1 text-muted-foreground [text-box:trim-both_cap_alphabetic]"
++                          )}
++                        >
++                          {t.quickCards.sessionsDesc}
++                        </p>
++                      </div>
++                      <ChevronRight
++                        size={16}
++                        className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
++                      />
++                    </button>
++
++                    <button
++                      type="button"
++                      onClick={() => setActiveModule("workflows")}
++                      className="group flex cursor-pointer items-center gap-4 rounded-2xl border border-border/70 bg-card p-5 text-left shadow-2xs transition-all hover:border-purple-500/40 hover:shadow-md"
++                    >
++                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500">
++                        <GitBranch size={20} />
++                      </div>
++                      <div className="min-w-0 flex-1">
++                        <h3
++                          className={cn(
++                            typeClass("subtitle"),
++                            "text-foreground"
++                          )}
++                          style={{
++                            fontVariationSettings: fontWeights.semibold,
++                          }}
++                        >
++                          {t.quickCards.workflowsTitle}
++                        </h3>
++                        <p
++                          className={cn(
++                            typeClass("caption"),
++                            "-my-1 mt-0.5 truncate py-1 text-muted-foreground [text-box:trim-both_cap_alphabetic]"
++                          )}
++                        >
++                          {t.quickCards.workflowsDesc}
++                        </p>
++                      </div>
++                      <ChevronRight
++                        size={16}
++                        className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
++                      />
++                    </button>
++
++                    <button
++                      type="button"
++                      onClick={() => setActiveModule("agents")}
++                      className="group flex cursor-pointer items-center gap-4 rounded-2xl border border-border/70 bg-card p-5 text-left shadow-2xs transition-all hover:border-emerald-500/40 hover:shadow-md"
++                    >
++                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
++                        <Bot size={20} />
++                      </div>
++                      <div className="min-w-0 flex-1">
++                        <h3
++                          className={cn(
++                            typeClass("subtitle"),
++                            "text-foreground"
++                          )}
++                          style={{
++                            fontVariationSettings: fontWeights.semibold,
++                          }}
++                        >
++                          {t.quickCards.agentsTitle}
++                        </h3>
++                        <p
++                          className={cn(
++                            typeClass("caption"),
++                            "-my-1 mt-0.5 truncate py-1 text-muted-foreground [text-box:trim-both_cap_alphabetic]"
++                          )}
++                        >
++                          {t.quickCards.agentsDesc}
++                        </p>
++                      </div>
++                      <ChevronRight
++                        size={16}
++                        className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
++                      />
++                    </button>
++                  </section>
++
++                  {/* 8 宫格指标卡 */}
++                  <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
++                    {FLOCKS_METRICS.map((card) => {
++                      const IconComp = FLOCKS_ICON_MAP[card.icon]
++                      const isStatusCard = card.labelKey === "systemStatus"
++                      return (
++                        <div
++                          key={card.id}
++                          onClick={() =>
++                            card.targetModule &&
++                            setActiveModule(card.targetModule)
++                          }
++                          className={cn(
++                            "flex flex-col justify-between rounded-2xl border border-border/70 bg-card p-5 shadow-2xs transition-all",
++                            card.targetModule &&
++                              "cursor-pointer hover:border-border hover:shadow-sm"
++                          )}
++                        >
++                          <div className="flex items-center justify-between">
++                            <span
++                              className={cn(
++                                typeClass("caption"),
++                                "text-muted-foreground"
++                              )}
++                            >
++                              {t.metrics[card.labelKey]}
++                            </span>
++                            <span
++                              className={cn(
++                                "flex size-7 items-center justify-center rounded-lg",
++                                ACCENT_ICON_STYLES[card.accentColor]
++                              )}
++                            >
++                              <IconComp size={15} />
++                            </span>
++                          </div>
++
++                          <div className="mt-4">
++                            <p
++                              className={cn(
++                                "text-3xl tracking-tight tabular-nums",
++                                isStatusCard
++                                  ? "text-emerald-600 dark:text-emerald-400"
++                                  : "text-foreground"
++                              )}
++                              style={{
++                                fontVariationSettings: fontWeights.bold,
++                              }}
++                            >
++                              {card.value}
++                            </p>
++                            {card.subtextKey && (
++                              <p
++                                className={cn(
++                                  typeClass("caption"),
++                                  "mt-1 text-muted-foreground"
++                                )}
++                              >
++                                {t.metrics[card.subtextKey]}
++                              </p>
++                            )}
++                          </div>
++                        </div>
++                      )
++                    })}
++                  </section>
++                </>
++              )}
++
++              {/* 2. 渗透会话视图 */}
++              {activeModule === "sessions" && (
++                <div className="h-[calc(100dvh-7.5rem)] min-h-[560px]">
++                  <SecOpsChatbot mode="workspace" />
++                </div>
++              )}
++
++              {/* 3. 安全智能体视图 [17] */}
++              {activeModule === "agents" && (
++                <div className="space-y-5">
++                  <div className="flex flex-wrap items-center justify-between gap-3">
++                    <div>
++                      <h1
++                        className={cn(typeClass("title"), "text-foreground")}
++                        style={{ fontVariationSettings: fontWeights.semibold }}
++                      >
++                        {t.nav.agents} ({FLOCKS_AGENTS.length})
++                      </h1>
++                      <p
++                        className={cn(
++                          typeClass("caption"),
++                          "text-muted-foreground"
++                        )}
++                      >
++                        17
++                        个专业红队与安全运营智能体，支持独立模型路由与工具沙箱绑定
++                      </p>
++                    </div>
++                    <div className="flex flex-wrap gap-1.5">
++                      {(
++                        [
++                          "all",
++                          "recon",
++                          "exploit",
++                          "cloud",
++                          "triage",
++                          "dfir",
++                          "report",
++                        ] as const
++                      ).map((cat) => (
++                        <Button
++                          key={cat}
++                          size="sm"
++                          variant={
++                            agentCategory === cat ? "primary" : "secondary"
++                          }
++                          onClick={() => setAgentCategory(cat)}
++                        >
++                          {AGENT_CATEGORY_LABELS[cat]}
++                        </Button>
++                      ))}
++                    </div>
++                  </div>
++
++                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
++                    {filteredAgents.map((agent) => (
++                      <div
++                        key={agent.id}
++                        className="flex flex-col justify-between rounded-2xl border border-border/75 bg-card p-5 shadow-2xs"
++                      >
++                        <div>
++                          <div className="flex items-center justify-between gap-2">
++                            <span className="font-mono text-xs text-muted-foreground">
++                              {agent.id.toUpperCase()}
++                            </span>
++                            <Badge
++                              size="sm"
++                              variant="dot"
++                              color={
++                                agent.status === "online"
++                                  ? "green"
++                                  : agent.status === "busy"
++                                    ? "orange"
++                                    : "gray"
++                              }
++                            >
++                              {agent.status === "online"
++                                ? "在线"
++                                : agent.status === "busy"
++                                  ? "执行中"
++                                  : "待命"}
++                            </Badge>
++                          </div>
++                          <h3
++                            className={cn(
++                              typeClass("subtitle"),
++                              "mt-2 text-foreground"
++                            )}
++                            style={{
++                              fontVariationSettings: fontWeights.semibold,
++                            }}
++                          >
++                            {agent.name}
++                          </h3>
++                          <p
++                            className={cn(
++                              typeClass("caption"),
++                              "mt-1 text-muted-foreground"
++                            )}
++                          >
++                            {agent.role.zh}
++                          </p>
++                        </div>
++
++                        <div className="mt-4 space-y-3 border-t border-border/60 pt-3">
++                          <div
++                            className={cn(
++                              typeClass("caption"),
++                              "flex items-center justify-between text-muted-foreground"
++                            )}
++                          >
++                            <span>{agent.model}</span>
++                            <span className="tabular-nums">
++                              {agent.latencyMs}ms · 成功率 {agent.successRate}
++                            </span>
++                          </div>
++                          <div className="flex items-center justify-between">
++                            <Badge size="sm" variant="solid" color="purple">
++                              {agent.toolsCount} 个工具
++                            </Badge>
++                            <Button
++                              size="sm"
++                              variant="secondary"
++                              leadingIcon={Play}
++                              onClick={() =>
++                                launchInCopilot(
++                                  `调度 @${agent.name} 执行专项安全评估`
++                                )
++                              }
++                            >
++                              {t.common.launch}
++                            </Button>
++                          </div>
++                        </div>
++                      </div>
++                    ))}
++                  </div>
++                </div>
++              )}
++
++              {/* 4. 工具武库视图 [149] */}
++              {activeModule === "tools" && (
++                <div className="space-y-5">
++                  <div className="flex flex-wrap items-center justify-between gap-3">
++                    <div>
++                      <h1
++                        className={cn(typeClass("title"), "text-foreground")}
++                        style={{ fontVariationSettings: fontWeights.semibold }}
++                      >
++                        {t.nav.tools} ({FLOCKS_TOOLS.length})
++                      </h1>
++                      <p
++                        className={cn(
++                          typeClass("caption"),
++                          "text-muted-foreground"
++                        )}
++                      >
++                        149 个沙箱化渗透测试与取证工具
++                      </p>
++                    </div>
++                    <input
++                      type="search"
++                      value={toolSearch}
++                      onChange={(e) => setToolSearch(e.target.value)}
++                      placeholder="筛选 149 个工具名称或协议..."
++                      className={cn(
++                        typeClass("caption"),
++                        "h-8 w-64 rounded-lg border border-border bg-background px-3 text-foreground outline-none focus:ring-1 focus:ring-blue-500"
++                      )}
++                    />
++                  </div>
++
++                  <div className="flex flex-wrap gap-1.5">
++                    {(
++                      [
++                        "all",
++                        "Recon",
++                        "Web",
++                        "Network",
++                        "Cloud",
++                        "AD",
++                        "Crypto",
++                        "DFIR",
++                        "OSINT",
++                      ] as const
++                    ).map((cat) => (
++                      <Button
++                        key={cat}
++                        size="sm"
++                        variant={toolCategory === cat ? "primary" : "secondary"}
++                        onClick={() => setToolCategory(cat)}
++                      >
++                        {TOOL_CATEGORY_LABELS[cat]}
++                      </Button>
++                    ))}
++                  </div>
++
++                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
++                    {filteredTools.map((tool: FlocksTool) => (
++                      <div
++                        key={tool.id}
++                        className="flex flex-col justify-between rounded-xl border border-border/70 bg-card p-4 shadow-2xs"
++                      >
++                        <div>
++                          <div className="flex items-center justify-between gap-2">
++                            <span className="font-mono text-sm font-semibold text-foreground">
++                              {tool.name}
++                            </span>
++                            <Badge
++                              size="sm"
++                              variant="dot"
++                              color={
++                                tool.riskLevel === "high"
++                                  ? "red"
++                                  : tool.riskLevel === "medium"
++                                    ? "orange"
++                                    : "green"
++                              }
++                            >
++                              {tool.status}
++                            </Badge>
++                          </div>
++                          <p
++                            className={cn(
++                              typeClass("caption"),
++                              "mt-1.5 text-muted-foreground"
++                            )}
++                          >
++                            {tool.description}
++                          </p>
++                        </div>
++                        <div
++                          className={cn(
++                            typeClass("micro"),
++                            "mt-3 flex items-center justify-between border-t border-border/50 pt-2.5 text-muted-foreground"
++                          )}
++                        >
++                          <span>
++                            {TOOL_CATEGORY_LABELS[tool.category]} ·{" "}
++                            {tool.runtime.toUpperCase()}
++                          </span>
++                          <button
++                            type="button"
++                            onClick={() =>
++                              launchInCopilot(
++                                `在隔离沙箱中运行工具 ${tool.name} (${tool.runtime})`
++                              )
++                            }
++                            className="cursor-pointer font-medium text-blue-500 hover:underline"
++                          >
++                            {t.common.launch} →
++                          </button>
++                        </div>
++                      </div>
++                    ))}
++                  </div>
++                </div>
++              )}
++
++              {/* 5. 自动化编排视图 [4] */}
++              {activeModule === "workflows" && (
++                <div className="space-y-4">
++                  <h1
++                    className={cn(typeClass("title"), "text-foreground")}
++                    style={{ fontVariationSettings: fontWeights.semibold }}
++                  >
++                    {t.nav.workflows} ({FLOCKS_WORKFLOWS.length})
++                  </h1>
++                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
++                    {FLOCKS_WORKFLOWS.map((wf) => (
++                      <div
++                        key={wf.id}
++                        className="flex flex-col justify-between rounded-2xl border border-border/75 bg-card p-5 shadow-2xs"
++                      >
++                        <div>
++                          <div className="flex items-center justify-between">
++                            <Badge
++                              size="sm"
++                              variant="dot"
++                              color={wf.status === "active" ? "green" : "gray"}
++                            >
++                              {wf.status === "active" ? "已启用" : "已暂停"} ·{" "}
++                              {wf.trigger}
++                            </Badge>
++                            <span
++                              className={cn(
++                                typeClass("caption"),
++                                "text-muted-foreground"
++                              )}
++                            >
++                              {wf.nodesCount} 个节点 · 平均耗时 {wf.avgDuration}
++                            </span>
++                          </div>
++                          <h3
++                            className={cn(
++                              typeClass("subtitle"),
++                              "mt-2.5 text-foreground"
++                            )}
++                            style={{
++                              fontVariationSettings: fontWeights.semibold,
++                            }}
++                          >
++                            {wf.name.zh}
++                          </h3>
++                          <p
++                            className={cn(
++                              typeClass("caption"),
++                              "mt-1 text-muted-foreground"
++                            )}
++                          >
++                            {wf.description.zh}
++                          </p>
++                        </div>
++                        <div
++                          className={cn(
++                            typeClass("caption"),
++                            "mt-4 flex items-center justify-between border-t border-border/60 pt-3"
++                          )}
++                        >
++                          <span className="text-muted-foreground">
++                            上次执行：{wf.lastRun}
++                          </span>
++                          <Button
++                            size="sm"
++                            variant="primary"
++                            leadingIcon={Play}
++                            onClick={() =>
++                              launchInCopilot(
++                                `触发工作流「${wf.name.zh}」并实时订阅节点遥测日志`
++                              )
++                            }
++                          >
++                            启动流水线
++                          </Button>
++                        </div>
++                      </div>
++                    ))}
++                  </div>
++                </div>
++              )}
++
++              {/* 6. 战术技能包视图 [15] */}
++              {activeModule === "skills" && (
++                <div className="space-y-4">
++                  <div className="flex flex-wrap items-center justify-between gap-2">
++                    <h1
++                      className={cn(typeClass("title"), "text-foreground")}
++                      style={{ fontVariationSettings: fontWeights.semibold }}
++                    >
++                      {t.nav.skills} ({FLOCKS_SKILLS.length})
++                    </h1>
++                    <div className="flex flex-wrap gap-1.5">
++                      {(
++                        [
++                          "all",
++                          "web",
++                          "cloud",
++                          "network",
++                          "ad",
++                          "code",
++                          "dfir",
++                        ] as const
++                      ).map((dom) => (
++                        <Button
++                          key={dom}
++                          size="sm"
++                          variant={
++                            skillFilter === dom ? "primary" : "secondary"
++                          }
++                          onClick={() => setSkillFilter(dom)}
++                        >
++                          {SKILL_DOMAIN_LABELS[dom]}
++                        </Button>
++                      ))}
++                    </div>
++                  </div>
++                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
++                    {FLOCKS_SKILLS.filter(
++                      (s) => skillFilter === "all" || s.domain === skillFilter
++                    ).map((sk) => (
++                      <div
++                        key={sk.id}
++                        className="rounded-xl border border-border/75 bg-card p-4 shadow-2xs"
++                      >
++                        <div className="flex items-center justify-between">
++                          <Badge size="sm" variant="solid" color="blue">
++                            {SKILL_DOMAIN_LABELS[sk.domain]}
++                          </Badge>
++                          <span className="font-mono text-xs text-muted-foreground">
++                            {sk.version}
++                          </span>
++                        </div>
++                        <h3 className="mt-2 font-mono text-sm font-semibold text-foreground">
++                          {sk.name}
++                        </h3>
++                        <p
++                          className={cn(
++                            typeClass("caption"),
++                            "mt-1 text-muted-foreground"
++                          )}
++                        >
++                          {sk.title.zh}
++                        </p>
++                      </div>
++                    ))}
++                  </div>
++                </div>
++              )}
++
++              {/* 7. 任务调度视图 */}
++              {activeModule === "tasks" && (
++                <div className="space-y-4">
++                  <h1
++                    className={cn(typeClass("title"), "text-foreground")}
++                    style={{ fontVariationSettings: fontWeights.semibold }}
++                  >
++                    {t.nav.tasks} ({FLOCKS_TASKS.length})
++                  </h1>
++                  <div className="space-y-3">
++                    {FLOCKS_TASKS.map((tsk) => (
++                      <div
++                        key={tsk.id}
++                        className="flex flex-col justify-between gap-3 rounded-xl border border-border/75 bg-card p-4 sm:flex-row sm:items-center"
++                      >
++                        <div className="space-y-1">
++                          <div className="flex items-center gap-2">
++                            <Badge
++                              size="sm"
++                              variant="solid"
++                              color={
++                                tsk.severity === "critical"
++                                  ? "red"
++                                  : tsk.severity === "high"
++                                    ? "orange"
++                                    : "blue"
++                              }
++                            >
++                              {tsk.severity === "critical"
++                                ? "严重"
++                                : tsk.severity === "high"
++                                  ? "高危"
++                                  : tsk.severity === "medium"
++                                    ? "中危"
++                                    : "低危"}
++                            </Badge>
++                            <span
++                              className={cn(
++                                typeClass("body"),
++                                "text-foreground"
++                              )}
++                              style={{
++                                fontVariationSettings: fontWeights.semibold,
++                              }}
++                            >
++                              {tsk.title.zh}
++                            </span>
++                          </div>
++                          <p
++                            className={cn(
++                              typeClass("caption"),
++                              "text-muted-foreground"
++                            )}
++                          >
++                            {tsk.workflow} · 启动于 {tsk.startedAt}
++                          </p>
++                        </div>
++                        <div className="flex items-center gap-3">
++                          <div className="h-2 w-28 overflow-hidden rounded-full bg-muted">
++                            <div
++                              className="h-full bg-blue-500 transition-all"
++                              style={{ width: `${tsk.progress}%` }}
++                            />
++                          </div>
++                          <span className="w-10 text-right font-mono text-xs">
++                            {tsk.progress}%
++                          </span>
++                        </div>
++                      </div>
++                    ))}
++                  </div>
++                </div>
++              )}
++
++              {/* 8. 证据工作区视图 */}
++              {activeModule === "workspace" && (
++                <div className="space-y-4">
++                  <h1
++                    className={cn(typeClass("title"), "text-foreground")}
++                    style={{ fontVariationSettings: fontWeights.semibold }}
++                  >
++                    {t.nav.workspace} ({FLOCKS_WORKSPACE_ITEMS.length})
++                  </h1>
++                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
++                    {FLOCKS_WORKSPACE_ITEMS.map((item) => (
++                      <div
++                        key={item.id}
++                        className="flex items-center justify-between rounded-xl border border-border/75 bg-card p-4"
++                      >
++                        <div>
++                          <p className="font-mono text-sm font-semibold text-foreground">
++                            {item.name}
++                          </p>
++                          <p className="mt-1 font-mono text-xs text-muted-foreground">
++                            {item.size} · {item.updatedAt} · {item.hash}
++                          </p>
++                        </div>
++                        <Badge size="sm" variant="dot" color="purple">
++                          {item.kind}
++                        </Badge>
++                      </div>
++                    ))}
++                  </div>
++                </div>
++              )}
++
++              {/* 单一模型接口配置 */}
++              {activeModule === "models" && <ModelSettings />}
++
++              {/* 10. 协同通道视图 */}
++              {activeModule === "channels" && (
++                <div className="space-y-4">
++                  <h1
++                    className={cn(typeClass("title"), "text-foreground")}
++                    style={{ fontVariationSettings: fontWeights.semibold }}
++                  >
++                    {t.nav.channels} ({FLOCKS_CHANNELS.length})
++                  </h1>
++                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
++                    {FLOCKS_CHANNELS.map((ch) => (
++                      <div
++                        key={ch.id}
++                        className="flex items-center justify-between rounded-xl border border-border/75 bg-card p-4"
++                      >
++                        <div>
++                          <div className="flex items-center gap-2">
++                            <Badge size="sm" variant="solid" color="blue">
++                              {ch.type}
++                            </Badge>
++                            <span
++                              className={cn(
++                                typeClass("body"),
++                                "text-foreground"
++                              )}
++                              style={{
++                                fontVariationSettings: fontWeights.semibold,
++                              }}
++                            >
++                              {ch.name}
++                            </span>
++                          </div>
++                          <p
++                            className={cn(
++                              typeClass("caption"),
++                              "mt-1 text-muted-foreground"
++                            )}
++                          >
++                            {ch.target} · 今日事件 {ch.eventsToday} 条
++                          </p>
++                        </div>
++                        <Badge
++                          size="sm"
++                          variant="dot"
++                          color={ch.status === "connected" ? "green" : "gray"}
++                        >
++                          {ch.status === "connected" ? "已连接" : "已暂停"}
++                        </Badge>
++                      </div>
++                    ))}
++                  </div>
++                </div>
++              )}
++            </div>
++          </main>
++
++          {/* 全局右侧可折叠 AI 副驾抽屉 */}
++          {copilotOpen && (
++            <aside className="w-full max-w-md shrink-0 border-l border-border bg-background shadow-2xl sm:w-[420px]">
++              <SecOpsChatbot
++                mode="drawer"
++                initialPrompt={copilotPrompt}
++                onCloseDrawer={() => setCopilotOpen(false)}
++              />
++            </aside>
++          )}
++        </div>
++      </SidebarInset>
++
++      {/* 全局 ⌘K 命令面板 */}
++      <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
++        <DialogContent size="lg" className="overflow-hidden p-0">
++          <div className="border-b border-border px-4 py-3">
++            <DialogTitle
++              className={cn(typeClass("subtitle"))}
++              style={{ fontVariationSettings: fontWeights.semibold }}
++            >
++              {t.common.commandPaletteTitle}
++            </DialogTitle>
++            <DialogDescription className="sr-only">
++              跨 10 个模块、17 个智能体与 149 个安全工具快速跳转
++            </DialogDescription>
++            <div className="mt-2 flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
++              <Search size={15} className="text-muted-foreground" />
++              <input
++                type="text"
++                autoFocus
++                value={commandQuery}
++                onChange={(e) => setCommandQuery(e.target.value)}
++                placeholder={t.common.searchPlaceholder}
++                className={cn(
++                  typeClass("body"),
++                  "w-full bg-transparent text-foreground outline-none"
++                )}
++              />
++            </div>
++          </div>
++
++          <div
++            className={cn(
++              typeClass("caption"),
++              "max-h-80 space-y-4 overflow-y-auto p-3"
++            )}
++          >
++            <div>
++              <p
++                className="px-2 pb-1 text-muted-foreground"
++                style={{ fontVariationSettings: fontWeights.semibold }}
++              >
++                控制台模块 ({commandResults.navMatches.length})
++              </p>
++              <div className="space-y-1">
++                {commandResults.navMatches.map((nav) => {
++                  const IconComp = FLOCKS_ICON_MAP[nav.icon]
++                  return (
++                    <button
++                      key={nav.id}
++                      type="button"
++                      onClick={() => {
++                        setActiveModule(nav.id)
++                        setCommandOpen(false)
++                      }}
++                      className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted"
++                    >
++                      <span className="flex items-center gap-2 font-medium text-foreground">
++                        <IconComp size={14} />
++                        {t.nav[nav.id]}
++                      </span>
++                      {nav.count !== undefined && (
++                        <Badge size="sm" variant="dot" color="gray">
++                          {nav.count}
++                        </Badge>
++                      )}
++                    </button>
++                  )
++                })}
++              </div>
++            </div>
++
++            {commandResults.agentMatches.length > 0 && (
++              <div>
++                <p
++                  className="px-2 pb-1 text-muted-foreground"
++                  style={{ fontVariationSettings: fontWeights.semibold }}
++                >
++                  安全智能体
++                </p>
++                {commandResults.agentMatches.map((ag) => (
++                  <button
++                    key={ag.id}
++                    type="button"
++                    onClick={() => {
++                      setActiveModule("agents")
++                      setCommandOpen(false)
++                    }}
++                    className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted"
++                  >
++                    <span className="font-medium text-foreground">
++                      <ShieldCheck size={13} className="mr-1.5 inline" />
++                      {ag.name}
++                    </span>
++                    <span className="text-muted-foreground">{ag.role.zh}</span>
++                  </button>
++                ))}
++              </div>
++            )}
++
++            {commandResults.toolMatches.length > 0 && (
++              <div>
++                <p
++                  className="px-2 pb-1 text-muted-foreground"
++                  style={{ fontVariationSettings: fontWeights.semibold }}
++                >
++                  沙箱工具
++                </p>
++                {commandResults.toolMatches.map((tl) => (
++                  <button
++                    key={tl.id}
++                    type="button"
++                    onClick={() => {
++                      setActiveModule("tools")
++                      setToolSearch(tl.name)
++                      setCommandOpen(false)
++                    }}
++                    className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted"
++                  >
++                    <span className="font-mono font-medium text-foreground">
++                      <Terminal size={13} className="mr-1.5 inline" />
++                      {tl.name}
++                    </span>
++                    <span className="text-muted-foreground">
++                      {TOOL_CATEGORY_LABELS[tl.category]} · {tl.runtime}
++                    </span>
++                  </button>
++                ))}
++              </div>
++            )}
++          </div>
++        </DialogContent>
++      </Dialog>
++    </SidebarProvider>
++  )
++}
+--- /dev/null
++++ b/components/platform/login-form.tsx
+@@ -0,0 +1,98 @@
++"use client"
++import { useState, type FormEvent } from "react"
++import { useRouter } from "next/navigation"
++import { ShieldCheck } from "lucide-react"
++import { Button } from "@/components/ui/button"
++import { Input } from "@/components/ui/input"
++
++export function LoginForm() {
++  const router = useRouter()
++  const [username, setUsername] = useState("")
++  const [password, setPassword] = useState("")
++  const [error, setError] = useState("")
++  const [pending, setPending] = useState(false)
++  async function submit(event: FormEvent<HTMLFormElement>) {
++    event.preventDefault()
++    setPending(true)
++    setError("")
++    try {
++      const response = await fetch("/api/auth/login", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({ username, password }),
++      })
++      const result = await response.json()
++      if (!response.ok) {
++        setError(result.error?.message || "登录失败，请重试。")
++        return
++      }
++      setPassword("")
++      router.replace("/")
++      router.refresh()
++    } catch {
++      setError("连接失败，请检查平台服务。")
++    } finally {
++      setPending(false)
++    }
++  }
++  return (
++    <main className="flex min-h-dvh items-center justify-center bg-neutral-50 px-5 dark:bg-background">
++      <section className="w-full max-w-sm rounded-2xl border border-border bg-card p-7 shadow-sm">
++        <div className="mb-5 flex items-center gap-3">
++          <div className="rounded-xl bg-blue-500/10 p-2.5 text-blue-600">
++            <ShieldCheck size={24} />
++          </div>
++          <div>
++            <h1 className="text-xl font-semibold">PennyAgent</h1>
++            <p className="text-sm text-muted-foreground">登录安全测试工作台</p>
++          </div>
++        </div>
++        <form onSubmit={submit} className="space-y-5">
++          <div className="space-y-2">
++            <label htmlFor="username" className="text-sm font-medium">
++              用户名
++            </label>
++            <Input
++              id="username"
++              name="username"
++              autoComplete="username"
++              required
++              maxLength={128}
++              value={username}
++              onChange={(e) => setUsername(e.target.value)}
++              disabled={pending}
++            />
++          </div>
++          <div className="space-y-2">
++            <label htmlFor="password" className="text-sm font-medium">
++              密码
++            </label>
++            <Input
++              id="password"
++              name="password"
++              type="password"
++              autoComplete="current-password"
++              required
++              maxLength={1024}
++              value={password}
++              onChange={(e) => setPassword(e.target.value)}
++              disabled={pending}
++            />
++          </div>
++          {error && (
++            <p role="alert" className="text-sm text-red-600">
++              {error}
++            </p>
++          )}
++          <Button className="w-full" type="submit" disabled={pending}>
++            {pending ? "正在登录…" : "登录"}
++          </Button>
++        </form>
++        <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
++          首次使用请在本机终端运行 <code>npm run setup:local</code>{" "}
++          创建管理员。平台没有默认密码。
++        </p>
++      </section>
++    </main>
++  )
++}
+--- /dev/null
++++ b/components/platform/logout-button.tsx
+@@ -0,0 +1,45 @@
++"use client"
++import { useState } from "react"
++import { useRouter } from "next/navigation"
++import { LogOut } from "lucide-react"
++import { Button } from "@/components/ui/button"
++export function LogoutButton() {
++  const router = useRouter()
++  const [pending, setPending] = useState(false)
++  const [error, setError] = useState("")
++  async function logout() {
++    setPending(true)
++    setError("")
++    try {
++      const response = await fetch("/api/auth/logout", { method: "POST" })
++      if (!response.ok) {
++        setError("退出失败，请重试。")
++        return
++      }
++      router.replace("/login")
++      router.refresh()
++    } catch {
++      setError("退出失败，请检查服务。")
++    } finally {
++      setPending(false)
++    }
++  }
++  return (
++    <>
++      <Button
++        size="sm"
++        variant="ghost"
++        leadingIcon={LogOut}
++        onClick={logout}
++        disabled={pending}
++      >
++        {pending ? "正在退出…" : "退出登录"}
++      </Button>
++      {error && (
++        <span role="alert" className="text-xs text-red-600">
++          {error}
++        </span>
++      )}
++    </>
++  )
++}
+--- /dev/null
++++ b/components/platform/model-settings.tsx
+@@ -0,0 +1,261 @@
++"use client"
++import { useEffect, useState, type FormEvent } from "react"
++import { useRouter } from "next/navigation"
++import { KeyRound, Save, PlugZap } from "lucide-react"
++import { Button } from "@/components/ui/button"
++import { Input } from "@/components/ui/input"
++import { typeClass } from "@/lib/size-context"
++import { fontWeights } from "@/lib/font-weight"
++
++type PublicConfig = {
++  configured: boolean
++  baseUrl: string
++  model: string
++  hasApiKey: boolean
++  updatedAt: string | null
++}
++type Feedback = { message: string; error: boolean } | null
++
++export function ModelSettings() {
++  const router = useRouter()
++  const [baseUrl, setBaseUrl] = useState("")
++  const [model, setModel] = useState("")
++  const [apiKey, setApiKey] = useState("")
++  const [clearApiKey, setClearApiKey] = useState(false)
++  const [saved, setSaved] = useState<PublicConfig | null>(null)
++  const [loading, setLoading] = useState(true)
++  const [busy, setBusy] = useState<"save" | "test" | null>(null)
++  const [feedback, setFeedback] = useState<Feedback>(null)
++
++  useEffect(() => {
++    let active = true
++    async function load() {
++      try {
++        const response = await fetch("/api/model-config", { cache: "no-store" })
++        if (response.status === 401) {
++          router.replace("/login")
++          return
++        }
++        const result = await response.json()
++        if (!active) return
++        if (!response.ok) {
++          setFeedback({
++            message: result.error?.message || "读取配置失败。",
++            error: true,
++          })
++          return
++        }
++        setSaved(result)
++        setBaseUrl(result.baseUrl)
++        setModel(result.model)
++      } catch {
++        if (active)
++          setFeedback({
++            message: "读取配置失败，请检查平台服务。",
++            error: true,
++          })
++      } finally {
++        if (active) setLoading(false)
++      }
++    }
++    void load()
++    return () => {
++      active = false
++    }
++  }, [router])
++
++  async function perform(action: "save" | "test") {
++    setBusy(action)
++    setFeedback(null)
++    try {
++      const response = await fetch(
++        action === "save" ? "/api/model-config" : "/api/model-config/test",
++        {
++          method: action === "save" ? "PUT" : "POST",
++          headers: { "Content-Type": "application/json" },
++          body: JSON.stringify({ baseUrl, model, apiKey, clearApiKey }),
++        }
++      )
++      if (response.status === 401) {
++        router.replace("/login")
++        return
++      }
++      const result = await response.json()
++      if (!response.ok) {
++        setFeedback({
++          message: result.error?.message || "操作失败，请重试。",
++          error: true,
++        })
++        return
++      }
++      if (action === "save") {
++        setSaved(result)
++        setBaseUrl(result.baseUrl)
++        setModel(result.model)
++        setApiKey("")
++        setClearApiKey(false)
++        setFeedback({
++          message: "配置已保存，全部测试任务共用此接口。",
++          error: false,
++        })
++      } else
++        setFeedback({
++          message: `${result.message} 本次只检查连接，未保存修改。`,
++          error: false,
++        })
++    } catch {
++      setFeedback({ message: "连接平台失败，请检查服务后重试。", error: true })
++    } finally {
++      setBusy(null)
++    }
++  }
++  function submit(event: FormEvent<HTMLFormElement>) {
++    event.preventDefault()
++    void perform("save")
++  }
++  const disabled = loading || busy !== null
++  const canSubmit = !!baseUrl.trim() && !!model.trim() && !disabled
++  const retainedKey =
++    saved?.hasApiKey && saved.baseUrl === baseUrl.trim().replace(/\/+$/, "")
++  return (
++    <section
++      className="max-w-2xl space-y-5"
++      aria-labelledby="model-settings-title"
++    >
++      <div>
++        <h1
++          id="model-settings-title"
++          className={typeClass("title")}
++          style={{ fontVariationSettings: fontWeights.semibold }}
++        >
++          Models
++        </h1>
++        <p className="mt-2 text-sm text-muted-foreground">
++          配置一套供全部测试任务使用的模型 API。
++        </p>
++      </div>
++      <form
++        onSubmit={submit}
++        className="space-y-5 rounded-2xl border border-border bg-card p-6 shadow-2xs"
++        aria-busy={disabled}
++      >
++        <div className="flex items-center gap-2 text-sm">
++          <KeyRound size={17} className="text-blue-500" />
++          <span>
++            {loading
++              ? "正在读取配置…"
++              : saved?.configured
++                ? "已保存接口配置"
++                : "尚未配置模型接口"}
++          </span>
++        </div>
++        <div className="space-y-2">
++          <label htmlFor="model-base-url" className="text-sm font-medium">
++            接口地址
++          </label>
++          <Input
++            id="model-base-url"
++            type="url"
++            required
++            maxLength={2048}
++            placeholder="http://127.0.0.1:8000/v1"
++            value={baseUrl}
++            disabled={disabled}
++            onChange={(e) => {
++              setBaseUrl(e.target.value)
++              setFeedback(null)
++            }}
++          />
++          <p className="text-xs leading-relaxed text-muted-foreground">
++            填写 OpenAI 兼容 API 的基础地址，通常包含
++            /v1；由平台服务端访问该地址。
++          </p>
++        </div>
++        <div className="space-y-2">
++          <label htmlFor="model-name" className="text-sm font-medium">
++            模型名称
++          </label>
++          <Input
++            id="model-name"
++            required
++            maxLength={200}
++            placeholder="接口实际提供的模型标识"
++            value={model}
++            disabled={disabled}
++            onChange={(e) => {
++              setModel(e.target.value)
++              setFeedback(null)
++            }}
++          />
++        </div>
++        <div className="space-y-2">
++          <label htmlFor="model-api-key" className="text-sm font-medium">
++            API Key{" "}
++            <span className="font-normal text-muted-foreground">
++              （按接口要求填写）
++            </span>
++          </label>
++          <Input
++            id="model-api-key"
++            type="password"
++            autoComplete="off"
++            maxLength={4096}
++            placeholder={
++              retainedKey ? "已保存，留空保留原密钥" : "本地接口无鉴权时可留空"
++            }
++            value={apiKey}
++            disabled={disabled || clearApiKey}
++            onChange={(e) => {
++              setApiKey(e.target.value)
++              setFeedback(null)
++            }}
++          />
++          <p className="text-xs leading-relaxed text-muted-foreground">
++            密钥加密保存在本机，不回传已有明文。更换接口地址时，请重新填写密钥。
++          </p>
++          {saved?.hasApiKey && (
++            <label className="flex items-center gap-2 text-sm">
++              <input
++                type="checkbox"
++                checked={clearApiKey}
++                disabled={disabled}
++                onChange={(e) => {
++                  setClearApiKey(e.target.checked)
++                  setApiKey("")
++                  setFeedback(null)
++                }}
++              />
++              清除已保存的密钥
++            </label>
++          )}
++        </div>
++        <div className="flex flex-wrap gap-3">
++          <Button type="submit" leadingIcon={Save} disabled={!canSubmit}>
++            {busy === "save" ? "正在保存…" : "保存配置"}
++          </Button>
++          <Button
++            type="button"
++            variant="secondary"
++            leadingIcon={PlugZap}
++            disabled={!canSubmit}
++            onClick={() => void perform("test")}
++          >
++            {busy === "test" ? "正在连接…" : "测试连接"}
++          </Button>
++        </div>
++        <p className="text-xs leading-relaxed text-muted-foreground">
++          测试连接会向当前地址发送一次实际模型请求，可能产生少量调用费用；连接成功不代表已验证
++          Strix 全部工具调用能力。
++        </p>
++        {feedback && (
++          <p
++            role={feedback.error ? "alert" : "status"}
++            className={`text-sm ${feedback.error ? "text-red-600" : "text-emerald-600"}`}
++          >
++            {feedback.message}
++          </p>
++        )}
++      </form>
++    </section>
++  )
++}
+--- a/components/sidebar-app/app-sidebar.tsx
++++ b/components/sidebar-app/app-sidebar.tsx
+@@ -162,7 +162,7 @@
+                           <span className="truncate [text-box:trim-both_cap_alphabetic] py-1 -my-1">
+                             {t.nav[item.id]}
+                           </span>
+-                          {item.count !== undefined && (
++                          {item.count !== undefined && item.id !== "models" && (
+                             <span className="ml-auto inline-flex items-center">
+                               <Badge
+                                 size="sm"
+--- /dev/null
++++ b/docs/implementation/issue-2-platform.md
+@@ -0,0 +1,48 @@
++# 工单 #2：平台登录与模型 API 配置
++
++## 实现范围
++
++已接入登录页面、服务端页面保护、受保护的配置接口、退出登录及单一 Models 配置表单。此工单不运行 Strix、不连接任务系统，也不改变其他页面的演示能力。
++
++根页面改为服务端检查会话，原界面迁至客户端组件；Models 的六项模拟数据被单一配置表单替换，侧栏不再显示固定模型数量。原有其他模块保持。
++
++## 技术选择
++
++- 采用适合本机单用户PoC的单管理员模式，无注册、外部身份服务、角色或多租户管理。
++- 初始化命令创建随机密码或使用用户提供的密码，存储随机盐与 scrypt 摘要，重复初始化拒绝覆盖。
++- 浏览器使用 HttpOnly、SameSite=Lax、12小时 cookie。cookie 保存随机令牌，服务端以令牌摘要索引持久会话；退出删除服务端会话，旧 cookie 随即失效。HTTP 本机开发下不设置 Secure，直接HTTPS请求设置 Secure；反向代理和公网部署不属于本次验证范围。
++- 每个受保护接口检查会话；写接口检查浏览器 Origin 与请求 Host，不仅依赖页面重定向。
++- 数据保存在私有本地目录，文件权限0600、目录0700。配置原子替换；API Key 使用 AES-256-GCM 加密，密钥单独保存为 master.key。它保护磁盘文件中的明文，不抵御同时取得全部目录及系统权限的攻击者。
++- 采用文件记录，满足本机单管理员及单配置范围；未增加数据库或远程服务。数据结构包括账户、会话、模型配置。后续任务状态的存储选择仍由对应工单确定。
++- 默认启动监听127.0.0.1。没有增加公网防护、暴力破解限流、MFA或SSO；本期不按公网生产身份系统交付。
++
++## 模型接口约定
++
++| 操作 | 公开接口 | 说明 |
++|---|---|---|
++| 登录 | POST /api/auth/login | username、password；成功设置会话cookie |
++| 会话查询 | GET /api/auth/session | 返回已登录用户名；未登录401 |
++| 退出 | POST /api/auth/logout | 删除会话，清除cookie |
++| 配置读取 | GET /api/model-config | 返回baseUrl、model、hasApiKey、configured、updatedAt，无密钥 |
++| 配置保存 | PUT /api/model-config | baseUrl、model、可选apiKey和clearApiKey |
++| 测试连接 | POST /api/model-config/test | 检查当前填写配置，不自动保存 |
++
++配置入口支持 OpenAI Chat Completions 兼容协议，将基础地址与 `/chat/completions` 组合，发送模型标识和一条小型问答请求。当前不支持原生Anthropic、Azure专有鉴权或Responses专用接口，需经兼容网关或后续适配。连接成功只证明该次问答返回有效内容，不证明Strix工具调用兼容。
++
++已有密钥不回传。相同接口地址留空密钥表示保留；可明确勾选清除。更换基础地址后不自动将旧密钥发送到新地址，需重新填写。参考资料和任务字段不在本工单实现。
++
++错误包括未登录401、非法输入400、跨站写入403、模型鉴权错误、模型名称/接口错误、限流、无效响应、连接失败及超时。模型侧401/403映射为本地422，防止页面把模型鉴权错误误认作平台退出。只返回标准化说明，不回显模型服务原始错误或响应正文。
++
++整体连接测试15秒超时，覆盖响应头与正文。API基础地址允许本机或内网HTTP/HTTPS地址；拒绝用户信息、查询参数和URL片段。密钥保存在单独字段。
++
++## 运行与测试
++
++初始化、启动及构建命令见根README。账户和配置在服务重启后保留；应用不需要每次启动重新初始化。恢复数据时须同时恢复master.key。
++
++`npm run test:api`：真实Next HTTP接口测试，覆盖访问保护、初始化登录退出、密钥隐藏、配置保存、模型HTTP请求及错误、清除/保留密钥、服务重启与超时。
++
++`npm run test:ui`：Playwright驱动真实Chrome，操作登录表单、Models表单、保存、测试连接、错误反馈、刷新、服务重启及退出；保存一张不含密钥的页面截图。
++
++测试中的模型服务是独立的本地HTTP夹具，用于验证服务端确实发送请求以及错误处理，不是实际LLM推理验收。没有提供客户模型凭据，本轮不宣称已完成客户模型联通或Strix执行。
++
++类型检查、ESLint及生产构建单独运行。现有组件库的ESLint警告与本工单结果分别记录；npm审计告警不自动执行强制升级。
+--- a/eslint.config.mjs
++++ b/eslint.config.mjs
+@@ -9,6 +9,8 @@
+   globalIgnores([
+     // Default ignores of eslint-config-next:
+     ".next/**",
++    ".next-platform-test/**",
++    ".pennyagent/**",
+     "out/**",
+     "build/**",
+     "next-env.d.ts",
+--- /dev/null
++++ b/lib/server/model-config.ts
+@@ -0,0 +1,217 @@
++import "server-only"
++import {
++  decryptSecret,
++  encryptSecret,
++  readRecord,
++  writeRecord,
++} from "./platform-store"
++
++type StoredConfig = {
++  baseUrl: string
++  model: string
++  encryptedApiKey: string
++  updatedAt: string
++}
++export type ModelConfig = { baseUrl: string; model: string; apiKey: string }
++export class ConfigInputError extends Error {}
++
++export async function readModelConfig(): Promise<ModelConfig | null> {
++  const saved = await readRecord<StoredConfig>("model-config.json")
++  if (!saved) return null
++  return {
++    baseUrl: saved.baseUrl,
++    model: saved.model,
++    apiKey: saved.encryptedApiKey
++      ? await decryptSecret(saved.encryptedApiKey)
++      : "",
++  }
++}
++
++export async function publicModelConfig() {
++  const saved = await readRecord<StoredConfig>("model-config.json")
++  return {
++    configured: !!saved,
++    baseUrl: saved?.baseUrl || "",
++    model: saved?.model || "",
++    hasApiKey: !!saved?.encryptedApiKey,
++    updatedAt: saved?.updatedAt || null,
++  }
++}
++
++export async function parseModelConfig(
++  body: Record<string, unknown>
++): Promise<ModelConfig> {
++  if (
++    typeof body.baseUrl !== "string" ||
++    typeof body.model !== "string" ||
++    (body.apiKey !== undefined && typeof body.apiKey !== "string") ||
++    (body.clearApiKey !== undefined && typeof body.clearApiKey !== "boolean")
++  ) {
++    throw new ConfigInputError("请填写接口地址和模型名称。")
++  }
++  const baseUrl = body.baseUrl.trim().replace(/\/+$/, "")
++  const model = body.model.trim()
++  let url: URL
++  try {
++    url = new URL(baseUrl)
++  } catch {
++    throw new ConfigInputError("接口地址须为有效的 HTTP 或 HTTPS 地址。")
++  }
++  if (
++    !["http:", "https:"].includes(url.protocol) ||
++    url.username ||
++    url.password ||
++    url.search ||
++    url.hash ||
++    baseUrl.length > 2048
++  ) {
++    throw new ConfigInputError(
++      "接口地址须使用 HTTP 或 HTTPS，且不包含用户名、密码、查询参数或片段。"
++    )
++  }
++  if (!model || model.length > 200)
++    throw new ConfigInputError("模型名称须为1至200个字符。")
++  const suppliedKey = (body.apiKey as string | undefined)?.trim() || ""
++  if (suppliedKey.length > 4096 || /[\r\n]/.test(suppliedKey))
++    throw new ConfigInputError("API Key 格式无效。")
++  // Never send an existing secret to a different endpoint without explicit replacement.
++  const saved = await readModelConfig()
++  const apiKey = body.clearApiKey
++    ? ""
++    : suppliedKey || (saved?.baseUrl === baseUrl ? saved.apiKey : "")
++  return { baseUrl, model, apiKey }
++}
++
++export async function saveModelConfig(config: ModelConfig) {
++  await writeRecord("model-config.json", {
++    baseUrl: config.baseUrl,
++    model: config.model,
++    encryptedApiKey: config.apiKey ? await encryptSecret(config.apiKey) : "",
++    updatedAt: new Date().toISOString(),
++  })
++  return publicModelConfig()
++}
++
++function timeoutResult() {
++  return {
++    ok: false as const,
++    code: "MODEL_TIMEOUT",
++    message: "模型接口请求超时，请检查服务负载。",
++    status: 504,
++  }
++}
++
++export async function probeModel(config: ModelConfig) {
++  const controller = new AbortController()
++  let timer: ReturnType<typeof setTimeout> | undefined
++  try {
++    return await Promise.race([
++      requestModel(config, controller.signal),
++      new Promise<ReturnType<typeof timeoutResult>>((resolve) => {
++        timer = setTimeout(() => {
++          controller.abort()
++          resolve(timeoutResult())
++        }, 15000)
++      }),
++    ])
++  } finally {
++    clearTimeout(timer)
++  }
++}
++
++async function requestModel(config: ModelConfig, signal: AbortSignal) {
++  let response: Response
++  try {
++    response = await fetch(`${config.baseUrl}/chat/completions`, {
++      method: "POST",
++      redirect: "error",
++      cache: "no-store",
++      signal,
++      headers: {
++        "Content-Type": "application/json",
++        ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
++      },
++      body: JSON.stringify({
++        model: config.model,
++        messages: [{ role: "user", content: "Reply with OK." }],
++        max_tokens: 16,
++        stream: false,
++      }),
++    })
++  } catch (error) {
++    const timedOut =
++      error instanceof Error &&
++      (error.name === "TimeoutError" || error.name === "AbortError")
++    return {
++      ok: false as const,
++      code: timedOut ? "MODEL_TIMEOUT" : "MODEL_CONNECTION_FAILED",
++      message: timedOut
++        ? "模型接口请求超时，请检查服务负载。"
++        : "连接模型接口失败，请检查地址、端口及网络。",
++      status: timedOut ? 504 : 502,
++    }
++  }
++  if (!response.ok) {
++    // Providers may echo credentials in errors. Do not return or log their bodies.
++    let providerCode = ""
++    if (response.status === 400) {
++      try {
++        const metadata = await response.json()
++        if (typeof metadata?.error?.code === "string")
++          providerCode = metadata.error.code
++      } catch {
++        if (signal.aborted) return timeoutResult()
++      }
++    } else await response.body?.cancel()
++    if ([401, 403].includes(response.status))
++      return {
++        ok: false as const,
++        code: "MODEL_AUTH_FAILED",
++        message: "模型接口鉴权失败，请检查 API Key 和访问权限。",
++        status: 422,
++      }
++    if (
++      response.status === 404 ||
++      ["model_not_found", "invalid_model"].includes(providerCode)
++    )
++      return {
++        ok: false as const,
++        code: "MODEL_NOT_FOUND",
++        message: "模型或接口不存在，请检查模型名称及 API 基础地址。",
++        status: 422,
++      }
++    if (response.status === 429)
++      return {
++        ok: false as const,
++        code: "MODEL_RATE_LIMITED",
++        message: "模型接口请求限流或额度不足。",
++        status: 429,
++      }
++    return {
++      ok: false as const,
++      code: "MODEL_REQUEST_FAILED",
++      message: `模型接口返回 HTTP ${response.status}，请检查接口协议、模型及服务状态。`,
++      status: 502,
++    }
++  }
++  try {
++    const payload = await response.json()
++    const content: unknown = payload?.choices?.[0]?.message?.content
++    if (typeof content !== "string" || !content.trim())
++      throw new Error("Invalid completion")
++  } catch {
++    if (signal.aborted) return timeoutResult()
++    return {
++      ok: false as const,
++      code: "MODEL_PROTOCOL_ERROR",
++      message:
++        "接口没有返回有效的 OpenAI Chat Completions 响应，请检查协议和模型名称。",
++      status: 502,
++    }
++  }
++  return {
++    ok: true as const,
++    model: config.model,
++    message: "连接成功，已收到模型的真实响应。",
++  }
++}
+--- /dev/null
++++ b/lib/server/platform-auth.ts
+@@ -0,0 +1,56 @@
++import "server-only"
++import {
++  createHash,
++  randomBytes,
++  scryptSync,
++  timingSafeEqual,
++} from "node:crypto"
++import { unlink } from "node:fs/promises"
++import path from "node:path"
++import { cookies } from "next/headers"
++import { dataDirectory, readRecord, writeRecord } from "./platform-store"
++
++export const SESSION_COOKIE = "penny_session"
++export const SESSION_SECONDS = 60 * 60 * 12
++type Account = { username: string; salt: string; passwordHash: string }
++type Session = { username: string; expiresAt: number }
++const sessionName = (token: string) =>
++  `sessions/${createHash("sha256").update(token).digest("hex")}.json`
++
++export async function authenticate(username: string, password: string) {
++  const account = await readRecord<Account>("account.json")
++  if (!account) return { kind: "uninitialized" } as const
++  const hash = scryptSync(password, account.salt, 64)
++  const stored = Buffer.from(account.passwordHash, "hex")
++  if (
++    hash.length !== stored.length ||
++    !timingSafeEqual(hash, stored) ||
++    username !== account.username
++  ) {
++    return { kind: "invalid" } as const
++  }
++  const token = randomBytes(32).toString("hex")
++  await writeRecord(sessionName(token), {
++    username,
++    expiresAt: Date.now() + SESSION_SECONDS * 1000,
++  })
++  return { kind: "success", token, username } as const
++}
++
++export async function currentSession(): Promise<Session | null> {
++  const token = (await cookies()).get(SESSION_COOKIE)?.value
++  if (!token || !/^[a-f0-9]{64}$/.test(token)) return null
++  const session = await readRecord<Session>(sessionName(token))
++  return session && session.expiresAt > Date.now() ? session : null
++}
++
++export async function deleteSession() {
++  const token = (await cookies()).get(SESSION_COOKIE)?.value
++  if (token && /^[a-f0-9]{64}$/.test(token)) {
++    await unlink(path.join(dataDirectory(), sessionName(token))).catch(
++      (error: NodeJS.ErrnoException) => {
++        if (error.code !== "ENOENT") throw error
++      }
++    )
++  }
++}
+--- /dev/null
++++ b/lib/server/platform-http.ts
+@@ -0,0 +1,48 @@
++import "server-only"
++import { NextResponse } from "next/server"
++import { currentSession } from "./platform-auth"
++
++export function apiError(code: string, message: string, status: number) {
++  return NextResponse.json(
++    { error: { code, message } },
++    { status, headers: { "Cache-Control": "no-store" } }
++  )
++}
++
++export async function requireSession(request?: Request) {
++  if (!(await currentSession()))
++    return apiError("UNAUTHENTICATED", "请先登录平台。", 401)
++  if (request && !sameOrigin(request))
++    return apiError("INVALID_ORIGIN", "请从当前平台页面提交操作。", 403)
++  return null
++}
++
++export function sameOrigin(request: Request) {
++  const origin = request.headers.get("origin")
++  if (!origin) return true
++  try {
++    const source = new URL(origin)
++    // Next may normalize request.url to localhost; Host preserves the browser address.
++    return (
++      source.host === request.headers.get("host") &&
++      source.protocol === new URL(request.url).protocol
++    )
++  } catch {
++    return false
++  }
++}
++
++export async function jsonObject(
++  request: Request
++): Promise<Record<string, unknown> | null> {
++  if (!request.headers.get("content-type")?.includes("application/json"))
++    return null
++  try {
++    const value = await request.json()
++    return value && typeof value === "object" && !Array.isArray(value)
++      ? value
++      : null
++  } catch {
++    return null
++  }
++}
+--- /dev/null
++++ b/lib/server/platform-store.ts
+@@ -0,0 +1,63 @@
++import "server-only"
++import { randomBytes, createCipheriv, createDecipheriv } from "node:crypto"
++import { mkdir, readFile, writeFile, rename } from "node:fs/promises"
++import path from "node:path"
++
++// Persistent single-machine PoC data. Never import this module into client code.
++export function dataDirectory() {
++  return path.resolve(process.env.PENNY_DATA_DIR || ".pennyagent")
++}
++
++export async function readRecord<T>(name: string): Promise<T | null> {
++  try {
++    return JSON.parse(
++      await readFile(path.join(dataDirectory(), name), "utf8")
++    ) as T
++  } catch (error) {
++    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null
++    throw error
++  }
++}
++
++export async function writeRecord(name: string, value: unknown) {
++  const destination = path.join(dataDirectory(), name)
++  await mkdir(path.dirname(destination), { recursive: true, mode: 0o700 })
++  const temporary = `${destination}.${randomBytes(8).toString("hex")}.tmp`
++  await writeFile(temporary, JSON.stringify(value), { mode: 0o600 })
++  await rename(temporary, destination)
++}
++
++async function encryptionKey() {
++  const keyPath = path.join(dataDirectory(), "master.key")
++  await mkdir(dataDirectory(), { recursive: true, mode: 0o700 })
++  try {
++    await writeFile(keyPath, randomBytes(32), { mode: 0o600, flag: "wx" })
++  } catch (error) {
++    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
++  }
++  return readFile(keyPath)
++}
++
++export async function encryptSecret(value: string) {
++  const iv = randomBytes(12)
++  const cipher = createCipheriv("aes-256-gcm", await encryptionKey(), iv)
++  const ciphertext = Buffer.concat([
++    cipher.update(value, "utf8"),
++    cipher.final(),
++  ])
++  return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString("base64")
++}
++
++export async function decryptSecret(value: string) {
++  const bytes = Buffer.from(value, "base64")
++  const decipher = createDecipheriv(
++    "aes-256-gcm",
++    await encryptionKey(),
++    bytes.subarray(0, 12)
++  )
++  decipher.setAuthTag(bytes.subarray(12, 28))
++  return Buffer.concat([
++    decipher.update(bytes.subarray(28)),
++    decipher.final(),
++  ]).toString("utf8")
++}
+--- a/next.config.ts
++++ b/next.config.ts
+@@ -1,5 +1,5 @@
+ import type { NextConfig } from "next"
+-
+-const nextConfig: NextConfig = {}
+-
++const nextConfig: NextConfig = {
++  distDir: process.env.PENNY_NEXT_DIST_DIR || ".next",
++}
+ export default nextConfig
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -24,6 +24,7 @@
+         "tw-animate-css": "^1.4.0"
+       },
+       "devDependencies": {
++        "@playwright/test": "^1.65.0",
+         "@tailwindcss/postcss": "^4",
+         "@types/node": "^20",
+         "@types/react": "^19",
+@@ -1566,6 +1567,22 @@
+       "license": "MIT",
+       "engines": {
+         "node": ">=12.4.0"
++      }
++    },
++    "node_modules/@playwright/test": {
++      "version": "1.65.0",
++      "resolved": "https://registry.npmjs.org/@playwright/test/-/test-1.65.0.tgz",
++      "integrity": "sha512-iGURLGuKDLakSEl7Pgfv8h7f+XLT+V861Wfhz0zlEl5nyFuKUopdkFBPKqTllTUp06aOwPuH8iuUEb3yp3MpbQ==",
++      "devOptional": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "playwright": "1.65.0"
++      },
++      "bin": {
++        "playwright": "cli.js"
++      },
++      "engines": {
++        "node": ">=20"
+       }
+     },
+     "node_modules/@rtsao/scc": {
+@@ -5471,6 +5488,35 @@
+         "url": "https://github.com/sponsors/jonschlinkert"
+       }
+     },
++    "node_modules/playwright": {
++      "version": "1.65.0",
++      "resolved": "https://registry.npmjs.org/playwright/-/playwright-1.65.0.tgz",
++      "integrity": "sha512-F3AMWcR44qMBt4kq+6Kb6mX7bjGXshktKFOPULd7reED6ZJWevjbNRqysP7q+AATE9kdPEZBibex1BYsvpVoeA==",
++      "devOptional": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "playwright-core": "1.65.0"
++      },
++      "bin": {
++        "playwright": "cli.js"
++      },
++      "engines": {
++        "node": ">=20"
++      }
++    },
++    "node_modules/playwright-core": {
++      "version": "1.65.0",
++      "resolved": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.65.0.tgz",
++      "integrity": "sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA==",
++      "devOptional": true,
++      "license": "Apache-2.0",
++      "bin": {
++        "playwright-core": "cli.js"
++      },
++      "engines": {
++        "node": ">=20"
++      }
++    },
+     "node_modules/possible-typed-array-names": {
+       "version": "1.1.0",
+       "dev": true,
+--- a/package.json
++++ b/package.json
+@@ -4,12 +4,16 @@
+   "type": "module",
+   "private": true,
+   "scripts": {
+-    "dev": "next dev",
++    "dev": "next dev --hostname 127.0.0.1",
+     "build": "next build",
+-    "start": "next start",
++    "start": "next start --hostname 127.0.0.1",
+     "lint": "eslint",
+     "format": "prettier --write \"**/*.{ts,tsx}\"",
+-    "typecheck": "tsc --noEmit"
++    "typecheck": "tsc --noEmit",
++    "setup:local": "node scripts/setup-local.mjs",
++    "test:api": "node --test tests/platform-api.test.mjs",
++    "test:ui": "node --test tests/platform-ui.test.mjs",
++    "test": "npm run test:api && npm run test:ui"
+   },
+   "dependencies": {
+     "@base-ui/react": "^1.9.0",
+@@ -28,6 +32,7 @@
+     "tw-animate-css": "^1.4.0"
+   },
+   "devDependencies": {
++    "@playwright/test": "^1.65.0",
+     "@tailwindcss/postcss": "^4",
+     "@types/node": "^20",
+     "@types/react": "^19",
+--- /dev/null
++++ b/scripts/setup-local.mjs
+@@ -0,0 +1,41 @@
++import { randomBytes, scryptSync } from "node:crypto"
++import { mkdir, writeFile } from "node:fs/promises"
++import path from "node:path"
++
++const username = process.env.PENNY_ADMIN_USERNAME || "admin"
++const generated = !process.env.PENNY_ADMIN_PASSWORD
++const password =
++  process.env.PENNY_ADMIN_PASSWORD || randomBytes(18).toString("base64url")
++if (
++  username.length > 128 ||
++  !username.trim() ||
++  password.length < 12 ||
++  password.length > 1024
++) {
++  console.error("用户名不能为空，密码长度须为12至1024个字符。")
++  process.exit(1)
++}
++const directory = path.resolve(process.env.PENNY_DATA_DIR || ".pennyagent")
++await mkdir(directory, { recursive: true, mode: 0o700 })
++const salt = randomBytes(16).toString("hex")
++const account = {
++  username: username.trim(),
++  salt,
++  passwordHash: scryptSync(password, salt, 64).toString("hex"),
++}
++try {
++  await writeFile(
++    path.join(directory, "account.json"),
++    JSON.stringify(account),
++    { mode: 0o600, flag: "wx" }
++  )
++} catch (error) {
++  if (error.code === "EEXIST") {
++    console.error("管理员已经初始化，原账户保持不变。")
++    process.exit(1)
++  }
++  throw error
++}
++console.log(`管理员已创建：${account.username}`)
++if (generated) console.log(`请保存本次生成的密码（仅显示一次）：${password}`)
++console.log("使用 npm run dev 启动本机平台。")
+--- /dev/null
++++ b/tests/helpers/platform-server.mjs
+@@ -0,0 +1,71 @@
++import { spawn } from "node:child_process"
++import { mkdtemp, rm } from "node:fs/promises"
++import { tmpdir } from "node:os"
++import path from "node:path"
++import net from "node:net"
++
++export async function createPlatformServer() {
++  const dataDir = await mkdtemp(path.join(tmpdir(), "penny-platform-"))
++  const listener = net.createServer()
++  await new Promise((resolve) => listener.listen(0, "127.0.0.1", resolve))
++  const port = listener.address().port
++  await new Promise((resolve) => listener.close(resolve))
++  const env = {
++    ...process.env,
++    PENNY_DATA_DIR: dataDir,
++    PENNY_NEXT_DIST_DIR: ".next-platform-test",
++    NEXT_TELEMETRY_DISABLED: "1",
++  }
++  const base = `http://127.0.0.1:${port}`
++  let server,
++    logs = ""
++  async function stop() {
++    if (!server || server.exitCode !== null) return
++    const exited = new Promise((resolve) => server.once("exit", resolve))
++    server.kill("SIGTERM")
++    await exited
++  }
++  async function start() {
++    server = spawn(
++      process.execPath,
++      [
++        "node_modules/next/dist/bin/next",
++        "dev",
++        "--webpack",
++        "--hostname",
++        "127.0.0.1",
++        "--port",
++        String(port),
++      ],
++      { env, stdio: ["ignore", "pipe", "pipe"] }
++    )
++    server.stdout.on("data", (x) => {
++      logs += x
++    })
++    server.stderr.on("data", (x) => {
++      logs += x
++    })
++    for (let n = 0; n < 120; n++) {
++      if (server.exitCode !== null)
++        throw new Error(`Test server exited: ${logs.slice(-2000)}`)
++      try {
++        if ((await fetch(`${base}/login`)).status === 200) return
++      } catch {
++        /* startup */
++      }
++      await new Promise((resolve) => setTimeout(resolve, 250))
++    }
++    throw new Error(`Test server startup timed out: ${logs.slice(-2000)}`)
++  }
++  async function dispose() {
++    await stop()
++    await rm(dataDir, { recursive: true, force: true })
++  }
++  try {
++    await start()
++  } catch (error) {
++    await dispose()
++    throw error
++  }
++  return { base, env, dataDir, start, stop, dispose, logs: () => logs }
++}
+--- /dev/null
++++ b/tests/platform-api.test.mjs
+@@ -0,0 +1,329 @@
++import { execFileSync } from "node:child_process"
++import { createPlatformServer } from "./helpers/platform-server.mjs"
++import { test, after } from "node:test"
++import assert from "node:assert/strict"
++import http from "node:http"
++const platform = await createPlatformServer()
++const { base, env } = platform
++const startServer = platform.start
++const stopServer = platform.stop
++after(platform.dispose)
++test("unauthenticated access redirects pages and rejects configuration APIs", async () => {
++  const page = await fetch(base, { redirect: "manual" })
++  assert.equal(page.status, 307, platform.logs().slice(-3000))
++  assert.equal(new URL(page.headers.get("location"), base).pathname, "/login")
++  const api = await fetch(`${base}/api/model-config`)
++  assert.equal(api.status, 401)
++  assert.equal((await api.json()).error.code, "UNAUTHENTICATED")
++})
++
++let cookie = ""
++const password = "Penny-API-test-password-2026"
++test("local administrator can login, read session, and logout revokes the cookie", async () => {
++  execFileSync(process.execPath, ["scripts/setup-local.mjs"], {
++    env: {
++      ...env,
++      PENNY_ADMIN_USERNAME: "tester",
++      PENNY_ADMIN_PASSWORD: password,
++    },
++  })
++  const invalid = await fetch(`${base}/api/auth/login`, {
++    method: "POST",
++    headers: { "Content-Type": "application/json", Origin: base },
++    body: JSON.stringify({ username: "tester", password: "wrong" }),
++  })
++  assert.equal(invalid.status, 401)
++  const login = await fetch(`${base}/api/auth/login`, {
++    method: "POST",
++    headers: { "Content-Type": "application/json", Origin: base },
++    body: JSON.stringify({ username: "tester", password }),
++  })
++  assert.equal(login.status, 200)
++  assert.match(login.headers.get("set-cookie"), /HttpOnly/i)
++  cookie = login.headers.get("set-cookie").split(";")[0]
++  assert.equal(
++    (
++      await (
++        await fetch(`${base}/api/auth/session`, { headers: { Cookie: cookie } })
++      ).json()
++    ).username,
++    "tester"
++  )
++  assert.equal(
++    (await fetch(base, { headers: { Cookie: cookie }, redirect: "manual" }))
++      .status,
++    200
++  )
++  assert.equal(
++    (
++      await fetch(`${base}/api/auth/logout`, {
++        method: "POST",
++        headers: { Cookie: cookie },
++      })
++    ).status,
++    200
++  )
++  assert.equal(
++    (await fetch(`${base}/api/auth/session`, { headers: { Cookie: cookie } }))
++      .status,
++    401
++  )
++})
++test("saved model configuration survives reload and never returns its API key", async () => {
++  const login = await fetch(`${base}/api/auth/login`, {
++    method: "POST",
++    headers: { "Content-Type": "application/json", Origin: base },
++    body: JSON.stringify({ username: "tester", password }),
++  })
++  cookie = login.headers.get("set-cookie").split(";")[0]
++  const headers = { "Content-Type": "application/json", Cookie: cookie }
++  const saved = await fetch(`${base}/api/model-config`, {
++    method: "PUT",
++    headers,
++    body: JSON.stringify({
++      baseUrl: "http://127.0.0.1:9876/v1",
++      model: "test-model",
++      apiKey: "test-only-secret-002",
++    }),
++  })
++  assert.equal(saved.status, 200)
++  const text = await (
++    await fetch(`${base}/api/model-config`, { headers })
++  ).text()
++  assert.ok(!text.includes("test-only-secret-002"))
++  assert.deepEqual(JSON.parse(text), {
++    configured: true,
++    baseUrl: "http://127.0.0.1:9876/v1",
++    model: "test-model",
++    hasApiKey: true,
++    updatedAt: JSON.parse(text).updatedAt,
++  })
++  assert.equal(
++    (
++      await fetch(`${base}/api/model-config`, {
++        method: "PUT",
++        headers,
++        body: JSON.stringify({
++          baseUrl: "file:///tmp/key",
++          model: "test-model",
++        }),
++      })
++    ).status,
++    400
++  )
++})
++
++test("model connection test uses real HTTP and classifies provider errors without leaking secrets", async () => {
++  let status = 200,
++    payload = { choices: [{ message: { content: "fixture response" } }] }
++  const requests = []
++  const upstream = http.createServer(async (req, res) => {
++    let text = ""
++    for await (const chunk of req) text += chunk
++    requests.push({
++      path: req.url,
++      auth: req.headers.authorization,
++      body: JSON.parse(text),
++    })
++    res.writeHead(status, { "Content-Type": "application/json" })
++    res.end(JSON.stringify(payload))
++  })
++  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve))
++  const endpoint = `http://127.0.0.1:${upstream.address().port}/v1`
++  const probe = () =>
++    fetch(`${base}/api/model-config/test`, {
++      method: "POST",
++      headers: { Cookie: cookie, "Content-Type": "application/json" },
++      body: JSON.stringify({
++        baseUrl: endpoint,
++        model: "fixture-model",
++        apiKey: "fixture-secret",
++      }),
++    })
++  try {
++    const good = await probe()
++    assert.equal(good.status, 200)
++    assert.equal((await good.json()).ok, true)
++    assert.equal(requests[0].path, "/v1/chat/completions")
++    assert.equal(requests[0].auth, "Bearer fixture-secret")
++    assert.equal(requests[0].body.model, "fixture-model")
++    for (const [httpStatus, expectedStatus, code] of [
++      [401, 422, "MODEL_AUTH_FAILED"],
++      [403, 422, "MODEL_AUTH_FAILED"],
++      [404, 422, "MODEL_NOT_FOUND"],
++      [429, 429, "MODEL_RATE_LIMITED"],
++      [500, 502, "MODEL_REQUEST_FAILED"],
++    ]) {
++      status = httpStatus
++      payload = { error: { message: "echo fixture-secret" } }
++      const result = await probe()
++      const text = await result.text()
++      assert.equal(result.status, expectedStatus)
++      assert.equal(JSON.parse(text).error.code, code)
++      assert.ok(!text.includes("fixture-secret"))
++    }
++    status = 400
++    payload = {
++      error: { code: "model_not_found", message: "echo fixture-secret" },
++    }
++    const missingModel = await probe()
++    assert.equal(missingModel.status, 422)
++    const modelError = await missingModel.text()
++    assert.equal(JSON.parse(modelError).error.code, "MODEL_NOT_FOUND")
++    assert.ok(!modelError.includes("fixture-secret"))
++    status = 200
++    payload = { models: [] }
++    const invalid = await probe()
++    assert.equal((await invalid.json()).error.code, "MODEL_PROTOCOL_ERROR")
++    const saved = await (
++      await fetch(`${base}/api/model-config`, { headers: { Cookie: cookie } })
++    ).json()
++    assert.equal(saved.model, "test-model")
++  } finally {
++    await new Promise((resolve) => upstream.close(resolve))
++  }
++})
++
++test("configuration key preservation, replacement, and clearing have explicit behavior", async () => {
++  const requests = []
++  const upstream = http.createServer(async (req, res) => {
++    for await (const chunk of req) void chunk
++    requests.push(req.headers.authorization)
++    res.writeHead(200, { "Content-Type": "application/json" })
++    res.end(
++      JSON.stringify({
++        choices: [{ message: { content: "fixture response" } }],
++      })
++    )
++  })
++  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve))
++  const baseUrl = `http://127.0.0.1:${upstream.address().port}/v1`
++  const headers = { Cookie: cookie, "Content-Type": "application/json" }
++  async function save(body) {
++    const r = await fetch(`${base}/api/model-config`, {
++      method: "PUT",
++      headers,
++      body: JSON.stringify(body),
++    })
++    assert.equal(r.status, 200)
++    return r.json()
++  }
++  try {
++    await save({ baseUrl, model: "test-model", apiKey: "preserved-secret" })
++    await save({ baseUrl, model: "new-model", apiKey: "" })
++    await fetch(`${base}/api/model-config/test`, {
++      method: "POST",
++      headers,
++      body: JSON.stringify({ baseUrl, model: "new-model", apiKey: "" }),
++    })
++    assert.equal(requests.at(-1), "Bearer preserved-secret")
++    assert.equal(
++      (await save({ baseUrl, model: "new-model", clearApiKey: true }))
++        .hasApiKey,
++      false
++    )
++    await fetch(`${base}/api/model-config/test`, {
++      method: "POST",
++      headers,
++      body: JSON.stringify({ baseUrl, model: "new-model" }),
++    })
++    assert.equal(requests.at(-1), undefined)
++  } finally {
++    await new Promise((resolve) => upstream.close(resolve))
++  }
++})
++
++test("configuration and authenticated session remain available after server restart", async () => {
++  await stopServer()
++  await startServer()
++  const session = await fetch(`${base}/api/auth/session`, {
++    headers: { Cookie: cookie },
++  })
++  assert.equal(session.status, 200)
++  assert.equal((await session.json()).username, "tester")
++  const config = await (
++    await fetch(`${base}/api/model-config`, { headers: { Cookie: cookie } })
++  ).json()
++  assert.equal(config.model, "new-model")
++  assert.equal(config.hasApiKey, false)
++})
++
++test("unauthenticated writes and cross-origin writes cannot change the saved configuration", async () => {
++  const body = JSON.stringify({
++    baseUrl: "http://127.0.0.1:9999/v1",
++    model: "unauthorized",
++  })
++  assert.equal(
++    (
++      await fetch(`${base}/api/model-config`, {
++        method: "PUT",
++        headers: { "Content-Type": "application/json", Origin: base },
++        body,
++      })
++    ).status,
++    401
++  )
++  assert.equal(
++    (
++      await fetch(`${base}/api/model-config/test`, {
++        method: "POST",
++        headers: { "Content-Type": "application/json", Origin: base },
++        body,
++      })
++    ).status,
++    401
++  )
++  assert.equal(
++    (
++      await fetch(`${base}/api/model-config`, {
++        method: "PUT",
++        headers: {
++          Cookie: cookie,
++          "Content-Type": "application/json",
++          Origin: "https://other.example",
++        },
++        body,
++      })
++    ).status,
++    403
++  )
++  assert.equal(
++    (
++      await (
++        await fetch(`${base}/api/model-config`, { headers: { Cookie: cookie } })
++      ).json()
++    ).model,
++    "new-model"
++  )
++})
++
++test("provider timeout after response headers is reported as a timeout", async () => {
++  const upstream = http.createServer((req, res) => {
++    req.resume()
++    res.writeHead(200, { "Content-Type": "application/json" })
++    res.flushHeaders()
++    const timer = setTimeout(
++      () =>
++        res.end(
++          JSON.stringify({ choices: [{ message: { content: "late" } }] })
++        ),
++      20000
++    )
++    res.on("close", () => clearTimeout(timer))
++  })
++  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve))
++  try {
++    const response = await fetch(`${base}/api/model-config/test`, {
++      method: "POST",
++      headers: { Cookie: cookie, "Content-Type": "application/json" },
++      body: JSON.stringify({
++        baseUrl: `http://127.0.0.1:${upstream.address().port}/v1`,
++        model: "slow-fixture",
++      }),
++    })
++    assert.equal(response.status, 504)
++    assert.equal((await response.json()).error.code, "MODEL_TIMEOUT")
++  } finally {
++    await new Promise((resolve) => upstream.close(resolve))
++  }
++})
+--- /dev/null
++++ b/tests/platform-ui.test.mjs
+@@ -0,0 +1,124 @@
++import { test } from "node:test"
++import assert from "node:assert/strict"
++import { execFileSync } from "node:child_process"
++import { existsSync } from "node:fs"
++import http from "node:http"
++import { chromium, expect } from "@playwright/test"
++import { createPlatformServer } from "./helpers/platform-server.mjs"
++
++test("browser login, Models configuration, connection feedback, restart, and logout", async () => {
++  const platform = await createPlatformServer()
++  let browser
++  const requests = []
++  let status = 200
++  const upstream = http.createServer(async (req, res) => {
++    let body = ""
++    for await (const chunk of req) body += chunk
++    requests.push({ auth: req.headers.authorization, body: JSON.parse(body) })
++    res.writeHead(status, { "Content-Type": "application/json" })
++    res.end(
++      JSON.stringify(
++        status === 200
++          ? { choices: [{ message: { content: "UI HTTP fixture response" } }] }
++          : { error: { message: "ui-fixture-secret" } }
++      )
++    )
++  })
++  try {
++    execFileSync(process.execPath, ["scripts/setup-local.mjs"], {
++      env: {
++        ...platform.env,
++        PENNY_ADMIN_USERNAME: "ui-tester",
++        PENNY_ADMIN_PASSWORD: "Penny-UI-test-password-2026",
++      },
++    })
++    await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve))
++    const endpoint = `http://127.0.0.1:${upstream.address().port}/v1`
++    const installedChrome =
++      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
++    const executablePath =
++      process.env.PENNY_CHROME_PATH ||
++      (existsSync(installedChrome) ? installedChrome : undefined)
++    browser = await chromium.launch({
++      headless: true,
++      ...(executablePath ? { executablePath } : {}),
++    })
++    const context = await browser.newContext()
++    const page = await context.newPage()
++    await page.goto(platform.base)
++    await expect(page).toHaveURL(`${platform.base}/login`)
++    await page.getByLabel("用户名", { exact: true }).fill("ui-tester")
++    await page.getByLabel("密码", { exact: true }).fill("wrong-password")
++    await page.getByRole("button", { name: "登录", exact: true }).click()
++    await expect(
++      page.getByRole("alert").filter({ hasText: "用户名或密码错误" })
++    ).toBeVisible()
++    await page
++      .getByLabel("密码", { exact: true })
++      .fill("Penny-UI-test-password-2026")
++    await page.getByRole("button", { name: "登录", exact: true }).click()
++    await expect(page).toHaveURL(platform.base + "/")
++    await page.getByRole("button", { name: "Models", exact: true }).click()
++    await expect(
++      page.getByRole("heading", { name: "Models", exact: true })
++    ).toBeVisible()
++    await page.getByLabel("接口地址", { exact: true }).fill(endpoint)
++    await page.getByLabel("模型名称", { exact: true }).fill("ui-fixture-model")
++    await page.getByLabel(/API Key/).fill("ui-fixture-secret")
++    const saved = page.waitForResponse(
++      (r) =>
++        r.url().endsWith("/api/model-config") && r.request().method() === "PUT"
++    )
++    await page.getByRole("button", { name: "保存配置", exact: true }).click()
++    assert.ok(!(await (await saved).text()).includes("ui-fixture-secret"))
++    await expect(
++      page.getByRole("status").filter({ hasText: "配置已保存" })
++    ).toBeVisible()
++    await expect(page.getByLabel(/API Key/)).toHaveValue("")
++    await page.getByRole("button", { name: "测试连接", exact: true }).click()
++    await expect(
++      page.getByRole("status").filter({ hasText: "连接成功" })
++    ).toBeVisible({ timeout: 20000 })
++    assert.equal(requests.at(-1).auth, "Bearer ui-fixture-secret")
++    assert.equal(requests.at(-1).body.model, "ui-fixture-model")
++    status = 401
++    await page.getByRole("button", { name: "测试连接", exact: true }).click()
++    await expect(
++      page.getByRole("alert").filter({ hasText: "鉴权失败" })
++    ).toBeVisible()
++    assert.ok(
++      !(await page.locator("body").innerText()).includes("ui-fixture-secret")
++    )
++    await page.reload()
++    await page.getByRole("button", { name: "Models", exact: true }).click()
++    await expect(page.getByLabel("接口地址", { exact: true })).toHaveValue(
++      endpoint
++    )
++    await expect(page.getByLabel("模型名称", { exact: true })).toHaveValue(
++      "ui-fixture-model"
++    )
++    await platform.stop()
++    await platform.start()
++    await page.goto(platform.base)
++    await expect(page).toHaveURL(platform.base + "/")
++    await page.getByRole("button", { name: "Models", exact: true }).click()
++    await expect(page.getByLabel("模型名称", { exact: true })).toHaveValue(
++      "ui-fixture-model"
++    )
++    await page.screenshot({
++      path: "docs/verification/issue-2/models-browser.png",
++      fullPage: true,
++    })
++    await page.getByRole("button", { name: "退出登录", exact: true }).click()
++    await expect(page).toHaveURL(`${platform.base}/login`)
++    assert.equal(
++      (await context.request.get(platform.base + "/api/model-config")).status(),
++      401
++    )
++  } finally {
++    await browser?.close()
++    upstream.closeAllConnections()
++    await new Promise((resolve) => upstream.close(resolve))
++    await platform.dispose()
++  }
++})
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -1,7 +1,11 @@
+ {
+   "compilerOptions": {
+     "target": "ES2017",
+-    "lib": ["dom", "dom.iterable", "esnext"],
++    "lib": [
++      "dom",
++      "dom.iterable",
++      "esnext"
++    ],
+     "allowJs": true,
+     "skipLibCheck": true,
+     "strict": true,
+@@ -19,7 +23,9 @@
+       }
+     ],
+     "paths": {
+-      "@/*": ["./*"]
++      "@/*": [
++        "./*"
++      ]
+     }
+   },
+   "include": [
+@@ -28,7 +34,11 @@
+     "**/*.tsx",
+     ".next/types/**/*.ts",
+     ".next/dev/types/**/*.ts",
+-    "**/*.mts"
++    "**/*.mts",
++    ".next-platform-test/types/**/*.ts",
++    ".next-platform-test/dev/types/**/*.ts"
+   ],
+-  "exclude": ["node_modules"]
++  "exclude": [
++    "node_modules"
++  ]
+ }

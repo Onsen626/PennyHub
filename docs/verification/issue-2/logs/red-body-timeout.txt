@@ -1,0 +1,40 @@
+
+> next-app@0.0.1 test:api
+> node --test tests/platform-api.test.mjs
+
+✔ unauthenticated access redirects pages and rejects configuration APIs (3825.232542ms)
+✔ local administrator can login, read session, and logout revokes the cookie (1657.945208ms)
+✔ saved model configuration survives reload and never returns its API key (58.768541ms)
+✔ model connection test uses real HTTP and classifies provider errors without leaking secrets (399.560375ms)
+✔ configuration key preservation, replacement, and clearing have explicit behavior (42.668542ms)
+✔ configuration and authenticated session remain available after server restart (9195.641875ms)
+✔ unauthenticated writes and cross-origin writes cannot change the saved configuration (222.479584ms)
+✖ provider timeout after response headers is reported as a timeout (20020.530958ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 7
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 44521.076083
+
+✖ failing tests:
+
+test at tests/platform-api.test.mjs:346:1
+✖ provider timeout after response headers is reported as a timeout (20020.530958ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 504
+  
+      at TestContext.<anonymous> (file:///Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/tests/platform-api.test.mjs:357:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 504,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

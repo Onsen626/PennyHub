@@ -1,0 +1,37 @@
+
+> next-app@0.0.1 test
+> npm run test:api && npm run test:ui
+
+
+> next-app@0.0.1 test:api
+> node --test tests/platform-api.test.mjs
+
+✔ unauthenticated access redirects pages and rejects configuration APIs (2508.384583ms)
+✔ local administrator can login, read session, and logout revokes the cookie (1401.092083ms)
+✔ saved model configuration survives reload and never returns its API key (58.841ms)
+✔ model connection test uses real HTTP and classifies provider errors without leaking secrets (354.272291ms)
+✔ configuration key preservation, replacement, and clearing have explicit behavior (36.55325ms)
+✔ configuration and authenticated session remain available after server restart (5801.8525ms)
+✔ unauthenticated writes and cross-origin writes cannot change the saved configuration (210.958875ms)
+✔ provider timeout after response headers is reported as a timeout (23014.658958ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 37761.467417
+
+> next-app@0.0.1 test:ui
+> node --test tests/platform-ui.test.mjs
+
+✔ browser login, Models configuration, connection feedback, restart, and logout (24912.137667ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 25130.878041

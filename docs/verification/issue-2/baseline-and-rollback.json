@@ -1,0 +1,60 @@
+{
+  "rollback": {
+    "command": [
+      "python3",
+      "/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/docs/verification/issue-2/rollback.py",
+      "--root",
+      "/var/folders/t1/bgbq7gz57jgcq4fkc603y0f00000gn/T/penny-issue2-baseline-mgewl6vk",
+      "--apply"
+    ],
+    "stdout": "CHECK_PASS: 28 files; unrelated files and runtime data are not touched\nROLLBACK_VERIFIED: original hashes restored, new implementation files removed\n",
+    "stderr": "",
+    "exit_status": 0
+  },
+  "baseline": {
+    "command": [
+      "node",
+      "/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/node_modules/next/dist/bin/next",
+      "dev",
+      "--webpack",
+      "--hostname",
+      "127.0.0.1",
+      "--port",
+      "62001"
+    ],
+    "cwd": "/var/folders/t1/bgbq7gz57jgcq4fkc603y0f00000gn/T/penny-issue2-baseline-mgewl6vk",
+    "inputs": [
+      "GET / without cookie",
+      "GET /api/model-config without cookie"
+    ],
+    "literal_outputs": [
+      "GET / -> 200",
+      "GET /api/model-config -> 404"
+    ],
+    "probe_exit_status": 0
+  },
+  "patch": {
+    "command": [
+      "git",
+      "apply",
+      "--check",
+      "/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/docs/verification/issue-2/patch.diff"
+    ],
+    "check_exit_status": 0,
+    "apply_exit_status": 0,
+    "stdout": "",
+    "hashes": "all modified hashes match"
+  },
+  "rollback_after_patch": {
+    "command": [
+      "python3",
+      "/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/docs/verification/issue-2/rollback.py",
+      "--root",
+      "/var/folders/t1/bgbq7gz57jgcq4fkc603y0f00000gn/T/penny-issue2-baseline-mgewl6vk",
+      "--apply"
+    ],
+    "stdout": "CHECK_PASS: 28 files; unrelated files and runtime data are not touched\nROLLBACK_VERIFIED: original hashes restored, new implementation files removed\n",
+    "stderr": "",
+    "exit_status": 0
+  }
+}

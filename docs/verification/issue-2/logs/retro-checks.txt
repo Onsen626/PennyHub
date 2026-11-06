@@ -1,0 +1,235 @@
+
+> next-app@0.0.1 test
+> npm run test:api && npm run test:ui
+
+
+> next-app@0.0.1 test:api
+> node --test tests/platform-api.test.mjs
+
+✔ unauthenticated access redirects pages and rejects configuration APIs (2934.235833ms)
+✔ local administrator can login, read session, and logout revokes the cookie (1556.7225ms)
+✔ saved model configuration survives reload and never returns its API key (60.822125ms)
+✔ model connection test uses real HTTP and classifies provider errors without leaking secrets (348.765333ms)
+✔ configuration key preservation, replacement, and clearing have explicit behavior (36.581667ms)
+✔ configuration and authenticated session remain available after server restart (4827.122917ms)
+✔ unauthenticated writes and cross-origin writes cannot change the saved configuration (212.87225ms)
+✔ provider timeout after response headers is reported as a timeout (23014.774083ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 38355.774583
+
+> next-app@0.0.1 test:ui
+> node --test tests/platform-ui.test.mjs
+
+✔ browser login, Models configuration, connection feedback, restart, and logout (23118.105875ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 23346.381541
+
+> next-app@0.0.1 typecheck
+> tsc --noEmit
+
+
+> next-app@0.0.1 lint
+> eslint
+
+
+/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/components/ui/color-picker.tsx
+  1951:7  warning  Unused eslint-disable directive (no problems were reported from 'no-restricted-syntax')
+  2426:5  warning  Unused eslint-disable directive (no problems were reported from 'no-restricted-syntax')
+
+✖ 2 problems (0 errors, 2 warnings)
+  0 errors and 2 warnings potentially fixable with the `--fix` option.
+
+
+> next-app@0.0.1 build
+> next build
+
+▲ Next.js 16.4.3 (Turbopack)
+✓ Running next.config.ts took 17ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 719ms
+  Running TypeScript ...
+  Finished TypeScript in 1506ms ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/10) ...
+  Generating static pages using 7 workers (2/10) 
+  Generating static pages using 7 workers (4/10) 
+  Generating static pages using 7 workers (7/10) 
+✓ Generating static pages using 7 workers (10/10) in 108ms
+Turbopack build encountered 4 warnings:
+./lib/server/platform-store.ts:14:13
+Warning: Dynamic filesystem access causes tracing of the whole project
+  [90m12 |[0m   [36mtry[0m {
+  [90m13 |[0m     [36mreturn[0m [33mJSON[0m.parse(
+[33m[1m>[0m [90m14 |[0m       [36mawait[0m readFile(path.join(dataDirectory(), name), [32m"utf8"[0m)
+  [90m   |[0m             [33m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m15 |[0m     ) [36mas[0m [33mT[0m
+  [90m16 |[0m   } [36mcatch[0m (error) {
+  [90m17 |[0m     [36mif[0m ((error [36mas[0m [33mNodeJS[0m.[33mErrnoException[0m).code === [32m"ENOENT"[0m) [36mreturn[0m [36mnull[0m
+
+Static analysis determined that this filesystem access causes the whole project to be traced and included in the output.
+This is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.
+This can slow down deployments or lead to failures when size limits are exceeded.
+To resolve this, you can
+- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or
+- only use them in development, or
+- opt out by adding an ignore comment to the highlighted call: fs.readFile(/*turbopackIgnore: true*/ ...), or
+- remove them.
+
+Import traces:
+  #1 [App Route]:
+    ./lib/server/platform-store.ts
+    ./lib/server/model-config.ts
+    ./app/api/model-config/test/route.ts
+
+  #2 [Server Component]:
+    ./lib/server/platform-store.ts
+    ./lib/server/platform-auth.ts
+    ./app/login/page.tsx
+
+  #3 [App Route]:
+    ./lib/server/platform-store.ts
+    ./lib/server/platform-store.ts
+    ./lib/server/model-config.ts
+    ./app/api/model-config/route.ts
+
+
+./lib/server/platform-store.ts:14:22
+Warning: Dynamic filesystem access causes tracing of the whole project
+  [90m12 |[0m   [36mtry[0m {
+  [90m13 |[0m     [36mreturn[0m [33mJSON[0m.parse(
+[33m[1m>[0m [90m14 |[0m       [36mawait[0m readFile(path.join(dataDirectory(), name), [32m"utf8"[0m)
+  [90m   |[0m                      [33m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m15 |[0m     ) [36mas[0m [33mT[0m
+  [90m16 |[0m   } [36mcatch[0m (error) {
+  [90m17 |[0m     [36mif[0m ((error [36mas[0m [33mNodeJS[0m.[33mErrnoException[0m).code === [32m"ENOENT"[0m) [36mreturn[0m [36mnull[0m
+
+Static analysis determined that this filesystem access causes the whole project to be traced and included in the output.
+This is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.
+This can slow down deployments or lead to failures when size limits are exceeded.
+To resolve this, you can
+- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or
+- only use them in development, or
+- opt out by adding an ignore comment to the highlighted call: path.join(/*turbopackIgnore: true*/ ...), or
+- remove them.
+
+Import traces:
+  #1 [App Route]:
+    ./lib/server/platform-store.ts
+    ./lib/server/model-config.ts
+    ./app/api/model-config/test/route.ts
+
+  #2 [Server Component]:
+    ./lib/server/platform-store.ts
+    ./lib/server/platform-auth.ts
+    ./app/login/page.tsx
+
+  #3 [App Route]:
+    ./lib/server/platform-store.ts
+    ./lib/server/platform-store.ts
+    ./lib/server/model-config.ts
+    ./app/api/model-config/route.ts
+
+
+./lib/server/platform-store.ts:23:23
+Warning: Dynamic filesystem access causes tracing of the whole project
+  [90m21 |[0m
+  [90m22 |[0m [36mexport[0m [36masync[0m [36mfunction[0m writeRecord(name: string, value: unknown) {
+[33m[1m>[0m [90m23 |[0m   [36mconst[0m destination = path.join(dataDirectory(), name)
+  [90m   |[0m                       [33m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m24 |[0m   [36mawait[0m mkdir(path.dirname(destination), { recursive: [36mtrue[0m, mode: [35m0o700[0m })
+  [90m25 |[0m   [36mconst[0m temporary = [32m`[0m${destination[32m}.[0m${randomBytes([35m8[0m).toString([32m"hex"[0m)[32m}.tmp`[0m
+  [90m26 |[0m   [36mawait[0m writeFile(temporary, [33mJSON[0m.stringify(value), { mode: [35m0o600[0m })
+
+Static analysis determined that this filesystem access causes the whole project to be traced and included in the output.
+This is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.
+This can slow down deployments or lead to failures when size limits are exceeded.
+To resolve this, you can
+- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or
+- only use them in development, or
+- opt out by adding an ignore comment to the highlighted call: path.join(/*turbopackIgnore: true*/ ...), or
+- remove them.
+
+Import traces:
+  #1 [App Route]:
+    ./lib/server/platform-store.ts
+    ./lib/server/model-config.ts
+    ./app/api/model-config/test/route.ts
+
+  #2 [Server Component]:
+    ./lib/server/platform-store.ts
+    ./lib/server/platform-auth.ts
+    ./app/login/page.tsx
+
+  #3 [App Route]:
+    ./lib/server/platform-store.ts
+    ./lib/server/platform-store.ts
+    ./lib/server/model-config.ts
+    ./app/api/model-config/route.ts
+
+
+./lib/server/platform-store.ts:8:10
+Warning: Dynamic filesystem access causes tracing of the whole project
+  [90m 6 |[0m [90m// Persistent single-machine PoC data. Never import this module into client code.[0m
+  [90m 7 |[0m [36mexport[0m [36mfunction[0m dataDirectory() {
+[33m[1m>[0m [90m 8 |[0m   [36mreturn[0m path.resolve(process.env.[33mPENNY_DATA_DIR[0m || [32m".pennyagent"[0m)
+  [90m   |[0m          [33m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m 9 |[0m }
+  [90m10 |[0m
+  [90m11 |[0m [36mexport[0m [36masync[0m [36mfunction[0m readRecord<[33mT[0m>(name: string): [33mPromise[0m<[33mT[0m | [36mnull[0m> {
+
+Static analysis determined that this filesystem access causes the whole project to be traced and included in the output.
+This is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.
+This can slow down deployments or lead to failures when size limits are exceeded.
+To resolve this, you can
+- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or
+- only use them in development, or
+- opt out by adding an ignore comment to the highlighted call: path.resolve(/*turbopackIgnore: true*/ ...), or
+- remove them.
+
+Import traces:
+  #1 [App Route]:
+    ./lib/server/platform-store.ts
+    ./lib/server/model-config.ts
+    ./app/api/model-config/test/route.ts
+
+  #2 [Server Component]:
+    ./lib/server/platform-store.ts
+    ./lib/server/platform-auth.ts
+    ./app/login/page.tsx
+
+  #3 [App Route]:
+    ./lib/server/platform-store.ts
+    ./lib/server/platform-store.ts
+    ./lib/server/model-config.ts
+    ./app/api/model-config/route.ts
+
+
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/auth/login
+├ ƒ /api/auth/logout
+├ ƒ /api/auth/session
+├ ƒ /api/model-config
+├ ƒ /api/model-config/test
+└ ƒ /login
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
