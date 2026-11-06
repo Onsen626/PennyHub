@@ -1,0 +1,118 @@
+{
+  "issue": "https://github.com/Onsen626/PennyHub/issues/2",
+  "runtime": {
+    "node": "24.13.1",
+    "next": "16.4.3",
+    "host": "macOS local"
+  },
+  "baseline": {
+    "rollback": {
+      "command": [
+        "python3",
+        "/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/docs/verification/issue-2/rollback.py",
+        "--root",
+        "/var/folders/t1/bgbq7gz57jgcq4fkc603y0f00000gn/T/penny-issue2-baseline-mgewl6vk",
+        "--apply"
+      ],
+      "stdout": "CHECK_PASS: 28 files; unrelated files and runtime data are not touched\nROLLBACK_VERIFIED: original hashes restored, new implementation files removed\n",
+      "stderr": "",
+      "exit_status": 0
+    },
+    "baseline": {
+      "command": [
+        "node",
+        "/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/node_modules/next/dist/bin/next",
+        "dev",
+        "--webpack",
+        "--hostname",
+        "127.0.0.1",
+        "--port",
+        "62001"
+      ],
+      "cwd": "/var/folders/t1/bgbq7gz57jgcq4fkc603y0f00000gn/T/penny-issue2-baseline-mgewl6vk",
+      "inputs": [
+        "GET / without cookie",
+        "GET /api/model-config without cookie"
+      ],
+      "literal_outputs": [
+        "GET / -> 200",
+        "GET /api/model-config -> 404"
+      ],
+      "probe_exit_status": 0
+    },
+    "patch": {
+      "command": [
+        "git",
+        "apply",
+        "--check",
+        "/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/docs/verification/issue-2/patch.diff"
+      ],
+      "check_exit_status": 0,
+      "apply_exit_status": 0,
+      "stdout": "",
+      "hashes": "all modified hashes match"
+    },
+    "rollback_after_patch": {
+      "command": [
+        "python3",
+        "/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/docs/verification/issue-2/rollback.py",
+        "--root",
+        "/var/folders/t1/bgbq7gz57jgcq4fkc603y0f00000gn/T/penny-issue2-baseline-mgewl6vk",
+        "--apply"
+      ],
+      "stdout": "CHECK_PASS: 28 files; unrelated files and runtime data are not touched\nROLLBACK_VERIFIED: original hashes restored, new implementation files removed\n",
+      "stderr": "",
+      "exit_status": 0
+    }
+  },
+  "modified": [
+    {
+      "command": "npm test",
+      "exit_status": 0,
+      "stdout_and_stderr": "\n> next-app@0.0.1 test\n> npm run test:api && npm run test:ui\n\n\n> next-app@0.0.1 test:api\n> node --test tests/platform-api.test.mjs\n\n✔ unauthenticated access redirects pages and rejects configuration APIs (2508.384583ms)\n✔ local administrator can login, read session, and logout revokes the cookie (1401.092083ms)\n✔ saved model configuration survives reload and never returns its API key (58.841ms)\n✔ model connection test uses real HTTP and classifies provider errors without leaking secrets (354.272291ms)\n✔ configuration key preservation, replacement, and clearing have explicit behavior (36.55325ms)\n✔ configuration and authenticated session remain available after server restart (5801.8525ms)\n✔ unauthenticated writes and cross-origin writes cannot change the saved configuration (210.958875ms)\n✔ provider timeout after response headers is reported as a timeout (23014.658958ms)\nℹ tests 8\nℹ suites 0\nℹ pass 8\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 37761.467417\n\n> next-app@0.0.1 test:ui\n> node --test tests/platform-ui.test.mjs\n\n✔ browser login, Models configuration, connection feedback, restart, and logout (24912.137667ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 25130.878041\n"
+    },
+    {
+      "command": "npm run typecheck",
+      "exit_status": 0,
+      "stdout_and_stderr": "\n> next-app@0.0.1 typecheck\n> tsc --noEmit\n\n"
+    },
+    {
+      "command": "npm run lint",
+      "exit_status": 0,
+      "stdout_and_stderr": "\n> next-app@0.0.1 lint\n> eslint\n\n\n/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/components/ui/color-picker.tsx\n  1951:7  warning  Unused eslint-disable directive (no problems were reported from 'no-restricted-syntax')\n  2426:5  warning  Unused eslint-disable directive (no problems were reported from 'no-restricted-syntax')\n\n✖ 2 problems (0 errors, 2 warnings)\n  0 errors and 2 warnings potentially fixable with the `--fix` option.\n\n"
+    },
+    {
+      "command": "PENNY_NEXT_DIST_DIR=.next-platform-test npm run build",
+      "exit_status": 0,
+      "stdout_and_stderr": "\n> next-app@0.0.1 build\n> next build\n\n▲ Next.js 16.4.3 (Turbopack)\n✓ Running next.config.ts took 17ms\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 810ms\n  Running TypeScript ...\n  Finished TypeScript in 1501ms ...\n  Collecting page data using 7 workers ...\n  Generating static pages using 7 workers (0/10) ...\n  Generating static pages using 7 workers (2/10) \n  Generating static pages using 7 workers (4/10) \n  Generating static pages using 7 workers (7/10) \n✓ Generating static pages using 7 workers (10/10) in 96ms\nTurbopack build encountered 4 warnings:\n./lib/server/platform-store.ts:14:13\nWarning: Dynamic filesystem access causes tracing of the whole project\n  \u001b[90m12 |\u001b[0m   \u001b[36mtry\u001b[0m {\n  \u001b[90m13 |\u001b[0m     \u001b[36mreturn\u001b[0m \u001b[33mJSON\u001b[0m.parse(\n\u001b[33m\u001b[1m>\u001b[0m \u001b[90m14 |\u001b[0m       \u001b[36mawait\u001b[0m readFile(path.join(dataDirectory(), name), \u001b[32m\"utf8\"\u001b[0m)\n  \u001b[90m   |\u001b[0m             \u001b[33m\u001b[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\u001b[0m\n  \u001b[90m15 |\u001b[0m     ) \u001b[36mas\u001b[0m \u001b[33mT\u001b[0m\n  \u001b[90m16 |\u001b[0m   } \u001b[36mcatch\u001b[0m (error) {\n  \u001b[90m17 |\u001b[0m     \u001b[36mif\u001b[0m ((error \u001b[36mas\u001b[0m \u001b[33mNodeJS\u001b[0m.\u001b[33mErrnoException\u001b[0m).code === \u001b[32m\"ENOENT\"\u001b[0m) \u001b[36mreturn\u001b[0m \u001b[36mnull\u001b[0m\n\nStatic analysis determined that this filesystem access causes the whole project to be traced and included in the output.\nThis is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.\nThis can slow down deployments or lead to failures when size limits are exceeded.\nTo resolve this, you can\n- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or\n- only use them in development, or\n- opt out by adding an ignore comment to the highlighted call: fs.readFile(/*turbopackIgnore: true*/ ...), or\n- remove them.\n\nImport traces:\n  #1 [App Route]:\n    ./lib/server/platform-store.ts\n    ./lib/server/model-config.ts\n    ./app/api/model-config/test/route.ts\n\n  #2 [Server Component]:\n    ./lib/server/platform-store.ts\n    ./lib/server/platform-auth.ts\n    ./app/login/page.tsx\n\n  #3 [App Route]:\n    ./lib/server/platform-store.ts\n    ./lib/server/platform-store.ts\n    ./lib/server/model-config.ts\n    ./app/api/model-config/route.ts\n\n\n./lib/server/platform-store.ts:14:22\nWarning: Dynamic filesystem access causes tracing of the whole project\n  \u001b[90m12 |\u001b[0m   \u001b[36mtry\u001b[0m {\n  \u001b[90m13 |\u001b[0m     \u001b[36mreturn\u001b[0m \u001b[33mJSON\u001b[0m.parse(\n\u001b[33m\u001b[1m>\u001b[0m \u001b[90m14 |\u001b[0m       \u001b[36mawait\u001b[0m readFile(path.join(dataDirectory(), name), \u001b[32m\"utf8\"\u001b[0m)\n  \u001b[90m   |\u001b[0m                      \u001b[33m\u001b[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\u001b[0m\n  \u001b[90m15 |\u001b[0m     ) \u001b[36mas\u001b[0m \u001b[33mT\u001b[0m\n  \u001b[90m16 |\u001b[0m   } \u001b[36mcatch\u001b[0m (error) {\n  \u001b[90m17 |\u001b[0m     \u001b[36mif\u001b[0m ((error \u001b[36mas\u001b[0m \u001b[33mNodeJS\u001b[0m.\u001b[33mErrnoException\u001b[0m).code === \u001b[32m\"ENOENT\"\u001b[0m) \u001b[36mreturn\u001b[0m \u001b[36mnull\u001b[0m\n\nStatic analysis determined that this filesystem access causes the whole project to be traced and included in the output.\nThis is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.\nThis can slow down deployments or lead to failures when size limits are exceeded.\nTo resolve this, you can\n- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or\n- only use them in development, or\n- opt out by adding an ignore comment to the highlighted call: path.join(/*turbopackIgnore: true*/ ...), or\n- remove them.\n\nImport traces:\n  #1 [App Route]:\n    ./lib/server/platform-store.ts\n    ./lib/server/model-config.ts\n    ./app/api/model-config/test/route.ts\n\n  #2 [Server Component]:\n    ./lib/server/platform-store.ts\n    ./lib/server/platform-auth.ts\n    ./app/login/page.tsx\n\n  #3 [App Route]:\n    ./lib/server/platform-store.ts\n    ./lib/server/platform-store.ts\n    ./lib/server/model-config.ts\n    ./app/api/model-config/route.ts\n\n\n./lib/server/platform-store.ts:23:23\nWarning: Dynamic filesystem access causes tracing of the whole project\n  \u001b[90m21 |\u001b[0m\n  \u001b[90m22 |\u001b[0m \u001b[36mexport\u001b[0m \u001b[36masync\u001b[0m \u001b[36mfunction\u001b[0m writeRecord(name: string, value: unknown) {\n\u001b[33m\u001b[1m>\u001b[0m \u001b[90m23 |\u001b[0m   \u001b[36mconst\u001b[0m destination = path.join(dataDirectory(), name)\n  \u001b[90m   |\u001b[0m                       \u001b[33m\u001b[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\u001b[0m\n  \u001b[90m24 |\u001b[0m   \u001b[36mawait\u001b[0m mkdir(path.dirname(destination), { recursive: \u001b[36mtrue\u001b[0m, mode: \u001b[35m0o700\u001b[0m })\n  \u001b[90m25 |\u001b[0m   \u001b[36mconst\u001b[0m temporary = \u001b[32m`\u001b[0m${destination\u001b[32m}.\u001b[0m${randomBytes(\u001b[35m8\u001b[0m).toString(\u001b[32m\"hex\"\u001b[0m)\u001b[32m}.tmp`\u001b[0m\n  \u001b[90m26 |\u001b[0m   \u001b[36mawait\u001b[0m writeFile(temporary, \u001b[33mJSON\u001b[0m.stringify(value), { mode: \u001b[35m0o600\u001b[0m })\n\nStatic analysis determined that this filesystem access causes the whole project to be traced and included in the output.\nThis is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.\nThis can slow down deployments or lead to failures when size limits are exceeded.\nTo resolve this, you can\n- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or\n- only use them in development, or\n- opt out by adding an ignore comment to the highlighted call: path.join(/*turbopackIgnore: true*/ ...), or\n- remove them.\n\nImport traces:\n  #1 [App Route]:\n    ./lib/server/platform-store.ts\n    ./lib/server/model-config.ts\n    ./app/api/model-config/test/route.ts\n\n  #2 [Server Component]:\n    ./lib/server/platform-store.ts\n    ./lib/server/platform-auth.ts\n    ./app/login/page.tsx\n\n  #3 [App Route]:\n    ./lib/server/platform-store.ts\n    ./lib/server/platform-store.ts\n    ./lib/server/model-config.ts\n    ./app/api/model-config/route.ts\n\n\n./lib/server/platform-store.ts:8:10\nWarning: Dynamic filesystem access causes tracing of the whole project\n  \u001b[90m 6 |\u001b[0m \u001b[90m// Persistent single-machine PoC data. Never import this module into client code.\u001b[0m\n  \u001b[90m 7 |\u001b[0m \u001b[36mexport\u001b[0m \u001b[36mfunction\u001b[0m dataDirectory() {\n\u001b[33m\u001b[1m>\u001b[0m \u001b[90m 8 |\u001b[0m   \u001b[36mreturn\u001b[0m path.resolve(process.env.\u001b[33mPENNY_DATA_DIR\u001b[0m || \u001b[32m\".pennyagent\"\u001b[0m)\n  \u001b[90m   |\u001b[0m          \u001b[33m\u001b[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\u001b[0m\n  \u001b[90m 9 |\u001b[0m }\n  \u001b[90m10 |\u001b[0m\n  \u001b[90m11 |\u001b[0m \u001b[36mexport\u001b[0m \u001b[36masync\u001b[0m \u001b[36mfunction\u001b[0m readRecord<\u001b[33mT\u001b[0m>(name: string): \u001b[33mPromise\u001b[0m<\u001b[33mT\u001b[0m | \u001b[36mnull\u001b[0m> {\n\nStatic analysis determined that this filesystem access causes the whole project to be traced and included in the output.\nThis is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.\nThis can slow down deployments or lead to failures when size limits are exceeded.\nTo resolve this, you can\n- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or\n- only use them in development, or\n- opt out by adding an ignore comment to the highlighted call: path.resolve(/*turbopackIgnore: true*/ ...), or\n- remove them.\n\nImport traces:\n  #1 [App Route]:\n    ./lib/server/platform-store.ts\n    ./lib/server/model-config.ts\n    ./app/api/model-config/test/route.ts\n\n  #2 [Server Component]:\n    ./lib/server/platform-store.ts\n    ./lib/server/platform-auth.ts\n    ./app/login/page.tsx\n\n  #3 [App Route]:\n    ./lib/server/platform-store.ts\n    ./lib/server/platform-store.ts\n    ./lib/server/model-config.ts\n    ./app/api/model-config/route.ts\n\n\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ƒ /\n├ ○ /_not-found\n├ ƒ /api/auth/login\n├ ƒ /api/auth/logout\n├ ƒ /api/auth/session\n├ ƒ /api/model-config\n├ ƒ /api/model-config/test\n└ ƒ /login\n\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\n"
+    }
+  ],
+  "behavior": {
+    "api_tests": 8,
+    "browser_tests": 1,
+    "browser": "headless installed Google Chrome driven by Playwright",
+    "inputs": "tests/platform-api.test.mjs and tests/platform-ui.test.mjs; temporary accounts and model HTTP fixtures only",
+    "page_before": "GET / without cookie -> 200",
+    "page_after": "GET / without cookie -> 307 Location /login",
+    "api_before": "GET /api/model-config -> 404",
+    "api_after": "GET /api/model-config without cookie -> 401; authenticated PUT/GET -> 200; API Key excluded",
+    "restart": "authenticated session and saved configuration survive actual Next server stop/start",
+    "logout": "server session revoked, old cookie rejected",
+    "connection": "real HTTP request to independent local fixture, auth/model/protocol/limit/timeout cases checked"
+  },
+  "boundaries": [
+    "No customer model credentials supplied; no actual customer LLM inference tested",
+    "No Strix run or task integration in issue #2",
+    "No code commit or push; pre-existing user workspace remains uncommitted"
+  ],
+  "review": "review.md",
+  "patch": "patch.diff",
+  "rollback": "rollback.py",
+  "manifest": "manifest.json",
+  "audit": {
+    "baseline_moderate": 8,
+    "modified_moderate": 8,
+    "same_advisory_packages": true,
+    "scope": "existing ESLint development dependency chain"
+  }
+}

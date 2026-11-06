@@ -1,0 +1,1179 @@
+"use client"
+
+import { useState, useEffect, useMemo } from "react"
+import {
+  Sparkles,
+  ChevronRight,
+  Search,
+  Bot,
+  GitBranch,
+  MessageSquare,
+  ShieldCheck,
+  Terminal,
+  Play,
+  ExternalLink,
+} from "lucide-react"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import {
+  Banner,
+  BannerTitle,
+  BannerDescription,
+  BannerActions,
+  BannerAction,
+} from "@/components/ui/banner"
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { typeClass } from "@/lib/size-context"
+import { fontWeights } from "@/lib/font-weight"
+import {
+  AppSidebar,
+  FLOCKS_ICON_MAP,
+} from "@/components/sidebar-app/app-sidebar"
+import { SidebarInsetTopbar } from "@/components/sidebar-app/inset-topbar"
+import { ModelSettings } from "@/components/platform/model-settings"
+import { LogoutButton } from "@/components/platform/logout-button"
+import { SecOpsChatbot } from "@/components/chat/secops-chatbot"
+import {
+  zhCopy,
+  FLOCKS_NAV_ITEMS,
+  FLOCKS_METRICS,
+  FLOCKS_AGENTS,
+  FLOCKS_WORKFLOWS,
+  FLOCKS_SKILLS,
+  FLOCKS_TOOLS,
+  FLOCKS_CHANNELS,
+  FLOCKS_TASKS,
+  FLOCKS_WORKSPACE_ITEMS,
+  type FlocksModuleId,
+  type FlocksTool,
+} from "@/lib/flocks-data"
+import { cn } from "@/lib/utils"
+
+const ACCENT_ICON_STYLES: Record<string, string> = {
+  purple: "text-purple-500 bg-purple-500/10",
+  teal: "text-teal-500 bg-teal-500/10",
+  green: "text-emerald-500 bg-emerald-500/10",
+  orange: "text-orange-500 bg-orange-500/10",
+  amber: "text-amber-500 bg-amber-500/10",
+  indigo: "text-indigo-500 bg-indigo-500/10",
+  pink: "text-pink-500 bg-pink-500/10",
+  emerald: "text-emerald-500 bg-emerald-500/10",
+}
+
+const AGENT_CATEGORY_LABELS: Record<string, string> = {
+  all: "全部",
+  recon: "资产测绘",
+  exploit: "漏洞验证",
+  cloud: "云安全",
+  triage: "告警研判",
+  dfir: "流量取证",
+  report: "证据报告",
+}
+
+const SKILL_DOMAIN_LABELS: Record<string, string> = {
+  all: "全部",
+  web: "Web 审计",
+  cloud: "云原生",
+  network: "网络协议",
+  ad: "内网域控",
+  code: "代码审计",
+  dfir: "应急取证",
+}
+
+const TOOL_CATEGORY_LABELS: Record<string, string> = {
+  all: "全部",
+  Recon: "资产测绘",
+  Web: "Web 渗透",
+  Network: "网络扫描",
+  Cloud: "云原生",
+  AD: "域控安全",
+  Crypto: "密码分析",
+  DFIR: "取证分析",
+  OSINT: "开源情报",
+}
+
+export default function FlocksPage() {
+  const [activeModule, setActiveModule] = useState<FlocksModuleId>("home")
+  const [copilotOpen, setCopilotOpen] = useState(false)
+  const [copilotPrompt, setCopilotPrompt] = useState<string | undefined>(
+    undefined
+  )
+  const [commandOpen, setCommandOpen] = useState(false)
+  const [commandQuery, setCommandQuery] = useState("")
+
+  const [agentCategory, setAgentCategory] = useState<string>("all")
+  const [toolCategory, setToolCategory] = useState<string>("all")
+  const [toolSearch, setToolSearch] = useState("")
+  const [skillFilter, setSkillFilter] = useState<string>("all")
+
+  const t = zhCopy
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault()
+        setCommandOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
+
+  const launchInCopilot = (promptText: string) => {
+    setCopilotPrompt(promptText)
+    setCopilotOpen(true)
+  }
+
+  const filteredAgents = useMemo(() => {
+    if (agentCategory === "all") return FLOCKS_AGENTS
+    return FLOCKS_AGENTS.filter((a) => a.category === agentCategory)
+  }, [agentCategory])
+
+  const filteredTools = useMemo(() => {
+    return FLOCKS_TOOLS.filter((tool) => {
+      const matchesCat =
+        toolCategory === "all" || tool.category === toolCategory
+      const q = toolSearch.trim().toLowerCase()
+      const matchesQuery =
+        !q ||
+        tool.name.toLowerCase().includes(q) ||
+        tool.description.toLowerCase().includes(q) ||
+        tool.runtime.toLowerCase().includes(q)
+      return matchesCat && matchesQuery
+    })
+  }, [toolCategory, toolSearch])
+
+  const commandResults = useMemo(() => {
+    const q = commandQuery.trim().toLowerCase()
+    const navMatches = FLOCKS_NAV_ITEMS.filter(
+      (item) =>
+        !q ||
+        t.nav[item.id].toLowerCase().includes(q) ||
+        item.id.toLowerCase().includes(q)
+    )
+    const agentMatches = FLOCKS_AGENTS.filter(
+      (a) =>
+        q &&
+        (a.name.toLowerCase().includes(q) ||
+          a.role.zh.toLowerCase().includes(q))
+    ).slice(0, 5)
+    const toolMatches = FLOCKS_TOOLS.filter(
+      (tl) =>
+        q &&
+        (tl.name.toLowerCase().includes(q) ||
+          tl.category.toLowerCase().includes(q))
+    ).slice(0, 6)
+    return { navMatches, agentMatches, toolMatches }
+  }, [commandQuery, t.nav])
+
+  return (
+    <SidebarProvider>
+      <AppSidebar
+        activeModule={activeModule}
+        onSelectModule={setActiveModule}
+        onOpenCommandPalette={() => setCommandOpen(true)}
+        onOpenCopilot={() => setCopilotOpen((v) => !v)}
+      />
+
+      <SidebarInset className="flex min-h-dvh flex-col bg-neutral-50/60 dark:bg-background">
+        {/* 顶部栏 */}
+        <SidebarInsetTopbar className="justify-between border-b border-border/60 bg-background/80 px-4 backdrop-blur-md">
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={copilotOpen ? "primary" : "secondary"}
+              leadingIcon={Sparkles}
+              onClick={() => setCopilotOpen((v) => !v)}
+            >
+              {t.common.copilotToggle}
+            </Button>
+            <LogoutButton />
+          </div>
+        </SidebarInsetTopbar>
+
+        {/* 主工作区 + 右侧可折叠 AI 副驾抽屉 */}
+        <div className="relative flex flex-1 overflow-hidden">
+          <main className="flex-1 overflow-y-auto p-5 sm:p-8">
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+              {/* 1. 控制台首页 */}
+              {activeModule === "home" && (
+                <>
+                  <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#231924] via-[#131824] to-[#0f172a] p-7 text-white shadow-md sm:p-10">
+                    <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-red-500/15 blur-3xl" />
+                    <div className="pointer-events-none absolute -right-24 -bottom-24 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
+
+                    <div className="relative z-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
+                      <div className="max-w-2xl space-y-3.5">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-red-200 backdrop-blur-xs">
+                          <Sparkles size={13} className="text-red-400" />
+                          {t.hero.badge}
+                        </span>
+
+                        <h1
+                          className="text-4xl tracking-tight text-[#ef4444] sm:text-5xl"
+                          style={{ fontVariationSettings: fontWeights.bold }}
+                        >
+                          {t.hero.title}
+                        </h1>
+
+                        <h2
+                          className="text-lg text-white sm:text-xl"
+                          style={{
+                            fontVariationSettings: fontWeights.semibold,
+                          }}
+                        >
+                          {t.hero.headline}
+                        </h2>
+
+                        <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
+                          {t.hero.description}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setActiveModule("sessions")}
+                          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#e11d48] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#be123c]"
+                        >
+                          <span>{t.hero.setupGuide}</span>
+                          <ChevronRight size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            launchInCopilot("执行快速外网攻击面与高危 CVE 巡检")
+                          }
+                          className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-xs transition-colors hover:bg-white/15"
+                        >
+                          <ExternalLink size={16} />
+                          <span>{t.hero.openSource}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+
+                  <Banner status="info" contrast="low" dismissible>
+                    <BannerTitle>
+                      红队授权门禁待确认：支付网关 v3 (SES-101)
+                      发现跨租户越权高危漏洞
+                    </BannerTitle>
+                    <BannerDescription>
+                      Web-Sentinel 已完成被动差分验证，正等待安全操作员批准只读
+                      JWT kid 混淆探针。
+                    </BannerDescription>
+                    <BannerActions>
+                      <BannerAction
+                        variant="primary"
+                        onClick={() => setActiveModule("sessions")}
+                      >
+                        前往审批
+                      </BannerAction>
+                    </BannerActions>
+                  </Banner>
+
+                  {/* 3 个快捷入口卡片 */}
+                  <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={() => setActiveModule("sessions")}
+                      className="group flex cursor-pointer items-center gap-4 rounded-2xl border border-border/70 bg-card p-5 text-left shadow-2xs transition-all hover:border-blue-500/40 hover:shadow-md"
+                    >
+                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
+                        <MessageSquare size={20} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3
+                          className={cn(
+                            typeClass("subtitle"),
+                            "text-foreground"
+                          )}
+                          style={{
+                            fontVariationSettings: fontWeights.semibold,
+                          }}
+                        >
+                          {t.quickCards.sessionsTitle}
+                        </h3>
+                        <p
+                          className={cn(
+                            typeClass("caption"),
+                            "-my-1 mt-0.5 truncate py-1 text-muted-foreground [text-box:trim-both_cap_alphabetic]"
+                          )}
+                        >
+                          {t.quickCards.sessionsDesc}
+                        </p>
+                      </div>
+                      <ChevronRight
+                        size={16}
+                        className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                      />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveModule("workflows")}
+                      className="group flex cursor-pointer items-center gap-4 rounded-2xl border border-border/70 bg-card p-5 text-left shadow-2xs transition-all hover:border-purple-500/40 hover:shadow-md"
+                    >
+                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-purple-500/10 text-purple-500">
+                        <GitBranch size={20} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3
+                          className={cn(
+                            typeClass("subtitle"),
+                            "text-foreground"
+                          )}
+                          style={{
+                            fontVariationSettings: fontWeights.semibold,
+                          }}
+                        >
+                          {t.quickCards.workflowsTitle}
+                        </h3>
+                        <p
+                          className={cn(
+                            typeClass("caption"),
+                            "-my-1 mt-0.5 truncate py-1 text-muted-foreground [text-box:trim-both_cap_alphabetic]"
+                          )}
+                        >
+                          {t.quickCards.workflowsDesc}
+                        </p>
+                      </div>
+                      <ChevronRight
+                        size={16}
+                        className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                      />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveModule("agents")}
+                      className="group flex cursor-pointer items-center gap-4 rounded-2xl border border-border/70 bg-card p-5 text-left shadow-2xs transition-all hover:border-emerald-500/40 hover:shadow-md"
+                    >
+                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
+                        <Bot size={20} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3
+                          className={cn(
+                            typeClass("subtitle"),
+                            "text-foreground"
+                          )}
+                          style={{
+                            fontVariationSettings: fontWeights.semibold,
+                          }}
+                        >
+                          {t.quickCards.agentsTitle}
+                        </h3>
+                        <p
+                          className={cn(
+                            typeClass("caption"),
+                            "-my-1 mt-0.5 truncate py-1 text-muted-foreground [text-box:trim-both_cap_alphabetic]"
+                          )}
+                        >
+                          {t.quickCards.agentsDesc}
+                        </p>
+                      </div>
+                      <ChevronRight
+                        size={16}
+                        className="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                      />
+                    </button>
+                  </section>
+
+                  {/* 8 宫格指标卡 */}
+                  <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {FLOCKS_METRICS.map((card) => {
+                      const IconComp = FLOCKS_ICON_MAP[card.icon]
+                      const isStatusCard = card.labelKey === "systemStatus"
+                      return (
+                        <div
+                          key={card.id}
+                          onClick={() =>
+                            card.targetModule &&
+                            setActiveModule(card.targetModule)
+                          }
+                          className={cn(
+                            "flex flex-col justify-between rounded-2xl border border-border/70 bg-card p-5 shadow-2xs transition-all",
+                            card.targetModule &&
+                              "cursor-pointer hover:border-border hover:shadow-sm"
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={cn(
+                                typeClass("caption"),
+                                "text-muted-foreground"
+                              )}
+                            >
+                              {t.metrics[card.labelKey]}
+                            </span>
+                            <span
+                              className={cn(
+                                "flex size-7 items-center justify-center rounded-lg",
+                                ACCENT_ICON_STYLES[card.accentColor]
+                              )}
+                            >
+                              <IconComp size={15} />
+                            </span>
+                          </div>
+
+                          <div className="mt-4">
+                            <p
+                              className={cn(
+                                "text-3xl tracking-tight tabular-nums",
+                                isStatusCard
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-foreground"
+                              )}
+                              style={{
+                                fontVariationSettings: fontWeights.bold,
+                              }}
+                            >
+                              {card.value}
+                            </p>
+                            {card.subtextKey && (
+                              <p
+                                className={cn(
+                                  typeClass("caption"),
+                                  "mt-1 text-muted-foreground"
+                                )}
+                              >
+                                {t.metrics[card.subtextKey]}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </section>
+                </>
+              )}
+
+              {/* 2. 渗透会话视图 */}
+              {activeModule === "sessions" && (
+                <div className="h-[calc(100dvh-7.5rem)] min-h-[560px]">
+                  <SecOpsChatbot mode="workspace" />
+                </div>
+              )}
+
+              {/* 3. 安全智能体视图 [17] */}
+              {activeModule === "agents" && (
+                <div className="space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h1
+                        className={cn(typeClass("title"), "text-foreground")}
+                        style={{ fontVariationSettings: fontWeights.semibold }}
+                      >
+                        {t.nav.agents} ({FLOCKS_AGENTS.length})
+                      </h1>
+                      <p
+                        className={cn(
+                          typeClass("caption"),
+                          "text-muted-foreground"
+                        )}
+                      >
+                        17
+                        个专业红队与安全运营智能体，支持独立模型路由与工具沙箱绑定
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(
+                        [
+                          "all",
+                          "recon",
+                          "exploit",
+                          "cloud",
+                          "triage",
+                          "dfir",
+                          "report",
+                        ] as const
+                      ).map((cat) => (
+                        <Button
+                          key={cat}
+                          size="sm"
+                          variant={
+                            agentCategory === cat ? "primary" : "secondary"
+                          }
+                          onClick={() => setAgentCategory(cat)}
+                        >
+                          {AGENT_CATEGORY_LABELS[cat]}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {filteredAgents.map((agent) => (
+                      <div
+                        key={agent.id}
+                        className="flex flex-col justify-between rounded-2xl border border-border/75 bg-card p-5 shadow-2xs"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {agent.id.toUpperCase()}
+                            </span>
+                            <Badge
+                              size="sm"
+                              variant="dot"
+                              color={
+                                agent.status === "online"
+                                  ? "green"
+                                  : agent.status === "busy"
+                                    ? "orange"
+                                    : "gray"
+                              }
+                            >
+                              {agent.status === "online"
+                                ? "在线"
+                                : agent.status === "busy"
+                                  ? "执行中"
+                                  : "待命"}
+                            </Badge>
+                          </div>
+                          <h3
+                            className={cn(
+                              typeClass("subtitle"),
+                              "mt-2 text-foreground"
+                            )}
+                            style={{
+                              fontVariationSettings: fontWeights.semibold,
+                            }}
+                          >
+                            {agent.name}
+                          </h3>
+                          <p
+                            className={cn(
+                              typeClass("caption"),
+                              "mt-1 text-muted-foreground"
+                            )}
+                          >
+                            {agent.role.zh}
+                          </p>
+                        </div>
+
+                        <div className="mt-4 space-y-3 border-t border-border/60 pt-3">
+                          <div
+                            className={cn(
+                              typeClass("caption"),
+                              "flex items-center justify-between text-muted-foreground"
+                            )}
+                          >
+                            <span>{agent.model}</span>
+                            <span className="tabular-nums">
+                              {agent.latencyMs}ms · 成功率 {agent.successRate}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Badge size="sm" variant="solid" color="purple">
+                              {agent.toolsCount} 个工具
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              leadingIcon={Play}
+                              onClick={() =>
+                                launchInCopilot(
+                                  `调度 @${agent.name} 执行专项安全评估`
+                                )
+                              }
+                            >
+                              {t.common.launch}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 4. 工具武库视图 [149] */}
+              {activeModule === "tools" && (
+                <div className="space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h1
+                        className={cn(typeClass("title"), "text-foreground")}
+                        style={{ fontVariationSettings: fontWeights.semibold }}
+                      >
+                        {t.nav.tools} ({FLOCKS_TOOLS.length})
+                      </h1>
+                      <p
+                        className={cn(
+                          typeClass("caption"),
+                          "text-muted-foreground"
+                        )}
+                      >
+                        149 个沙箱化渗透测试与取证工具
+                      </p>
+                    </div>
+                    <input
+                      type="search"
+                      value={toolSearch}
+                      onChange={(e) => setToolSearch(e.target.value)}
+                      placeholder="筛选 149 个工具名称或协议..."
+                      className={cn(
+                        typeClass("caption"),
+                        "h-8 w-64 rounded-lg border border-border bg-background px-3 text-foreground outline-none focus:ring-1 focus:ring-blue-500"
+                      )}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {(
+                      [
+                        "all",
+                        "Recon",
+                        "Web",
+                        "Network",
+                        "Cloud",
+                        "AD",
+                        "Crypto",
+                        "DFIR",
+                        "OSINT",
+                      ] as const
+                    ).map((cat) => (
+                      <Button
+                        key={cat}
+                        size="sm"
+                        variant={toolCategory === cat ? "primary" : "secondary"}
+                        onClick={() => setToolCategory(cat)}
+                      >
+                        {TOOL_CATEGORY_LABELS[cat]}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {filteredTools.map((tool: FlocksTool) => (
+                      <div
+                        key={tool.id}
+                        className="flex flex-col justify-between rounded-xl border border-border/70 bg-card p-4 shadow-2xs"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-sm font-semibold text-foreground">
+                              {tool.name}
+                            </span>
+                            <Badge
+                              size="sm"
+                              variant="dot"
+                              color={
+                                tool.riskLevel === "high"
+                                  ? "red"
+                                  : tool.riskLevel === "medium"
+                                    ? "orange"
+                                    : "green"
+                              }
+                            >
+                              {tool.status}
+                            </Badge>
+                          </div>
+                          <p
+                            className={cn(
+                              typeClass("caption"),
+                              "mt-1.5 text-muted-foreground"
+                            )}
+                          >
+                            {tool.description}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            typeClass("micro"),
+                            "mt-3 flex items-center justify-between border-t border-border/50 pt-2.5 text-muted-foreground"
+                          )}
+                        >
+                          <span>
+                            {TOOL_CATEGORY_LABELS[tool.category]} ·{" "}
+                            {tool.runtime.toUpperCase()}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              launchInCopilot(
+                                `在隔离沙箱中运行工具 ${tool.name} (${tool.runtime})`
+                              )
+                            }
+                            className="cursor-pointer font-medium text-blue-500 hover:underline"
+                          >
+                            {t.common.launch} →
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 5. 自动化编排视图 [4] */}
+              {activeModule === "workflows" && (
+                <div className="space-y-4">
+                  <h1
+                    className={cn(typeClass("title"), "text-foreground")}
+                    style={{ fontVariationSettings: fontWeights.semibold }}
+                  >
+                    {t.nav.workflows} ({FLOCKS_WORKFLOWS.length})
+                  </h1>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {FLOCKS_WORKFLOWS.map((wf) => (
+                      <div
+                        key={wf.id}
+                        className="flex flex-col justify-between rounded-2xl border border-border/75 bg-card p-5 shadow-2xs"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <Badge
+                              size="sm"
+                              variant="dot"
+                              color={wf.status === "active" ? "green" : "gray"}
+                            >
+                              {wf.status === "active" ? "已启用" : "已暂停"} ·{" "}
+                              {wf.trigger}
+                            </Badge>
+                            <span
+                              className={cn(
+                                typeClass("caption"),
+                                "text-muted-foreground"
+                              )}
+                            >
+                              {wf.nodesCount} 个节点 · 平均耗时 {wf.avgDuration}
+                            </span>
+                          </div>
+                          <h3
+                            className={cn(
+                              typeClass("subtitle"),
+                              "mt-2.5 text-foreground"
+                            )}
+                            style={{
+                              fontVariationSettings: fontWeights.semibold,
+                            }}
+                          >
+                            {wf.name.zh}
+                          </h3>
+                          <p
+                            className={cn(
+                              typeClass("caption"),
+                              "mt-1 text-muted-foreground"
+                            )}
+                          >
+                            {wf.description.zh}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            typeClass("caption"),
+                            "mt-4 flex items-center justify-between border-t border-border/60 pt-3"
+                          )}
+                        >
+                          <span className="text-muted-foreground">
+                            上次执行：{wf.lastRun}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            leadingIcon={Play}
+                            onClick={() =>
+                              launchInCopilot(
+                                `触发工作流「${wf.name.zh}」并实时订阅节点遥测日志`
+                              )
+                            }
+                          >
+                            启动流水线
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 6. 战术技能包视图 [15] */}
+              {activeModule === "skills" && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h1
+                      className={cn(typeClass("title"), "text-foreground")}
+                      style={{ fontVariationSettings: fontWeights.semibold }}
+                    >
+                      {t.nav.skills} ({FLOCKS_SKILLS.length})
+                    </h1>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(
+                        [
+                          "all",
+                          "web",
+                          "cloud",
+                          "network",
+                          "ad",
+                          "code",
+                          "dfir",
+                        ] as const
+                      ).map((dom) => (
+                        <Button
+                          key={dom}
+                          size="sm"
+                          variant={
+                            skillFilter === dom ? "primary" : "secondary"
+                          }
+                          onClick={() => setSkillFilter(dom)}
+                        >
+                          {SKILL_DOMAIN_LABELS[dom]}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {FLOCKS_SKILLS.filter(
+                      (s) => skillFilter === "all" || s.domain === skillFilter
+                    ).map((sk) => (
+                      <div
+                        key={sk.id}
+                        className="rounded-xl border border-border/75 bg-card p-4 shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <Badge size="sm" variant="solid" color="blue">
+                            {SKILL_DOMAIN_LABELS[sk.domain]}
+                          </Badge>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {sk.version}
+                          </span>
+                        </div>
+                        <h3 className="mt-2 font-mono text-sm font-semibold text-foreground">
+                          {sk.name}
+                        </h3>
+                        <p
+                          className={cn(
+                            typeClass("caption"),
+                            "mt-1 text-muted-foreground"
+                          )}
+                        >
+                          {sk.title.zh}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 7. 任务调度视图 */}
+              {activeModule === "tasks" && (
+                <div className="space-y-4">
+                  <h1
+                    className={cn(typeClass("title"), "text-foreground")}
+                    style={{ fontVariationSettings: fontWeights.semibold }}
+                  >
+                    {t.nav.tasks} ({FLOCKS_TASKS.length})
+                  </h1>
+                  <div className="space-y-3">
+                    {FLOCKS_TASKS.map((tsk) => (
+                      <div
+                        key={tsk.id}
+                        className="flex flex-col justify-between gap-3 rounded-xl border border-border/75 bg-card p-4 sm:flex-row sm:items-center"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              size="sm"
+                              variant="solid"
+                              color={
+                                tsk.severity === "critical"
+                                  ? "red"
+                                  : tsk.severity === "high"
+                                    ? "orange"
+                                    : "blue"
+                              }
+                            >
+                              {tsk.severity === "critical"
+                                ? "严重"
+                                : tsk.severity === "high"
+                                  ? "高危"
+                                  : tsk.severity === "medium"
+                                    ? "中危"
+                                    : "低危"}
+                            </Badge>
+                            <span
+                              className={cn(
+                                typeClass("body"),
+                                "text-foreground"
+                              )}
+                              style={{
+                                fontVariationSettings: fontWeights.semibold,
+                              }}
+                            >
+                              {tsk.title.zh}
+                            </span>
+                          </div>
+                          <p
+                            className={cn(
+                              typeClass("caption"),
+                              "text-muted-foreground"
+                            )}
+                          >
+                            {tsk.workflow} · 启动于 {tsk.startedAt}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="h-2 w-28 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full bg-blue-500 transition-all"
+                              style={{ width: `${tsk.progress}%` }}
+                            />
+                          </div>
+                          <span className="w-10 text-right font-mono text-xs">
+                            {tsk.progress}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 8. 证据工作区视图 */}
+              {activeModule === "workspace" && (
+                <div className="space-y-4">
+                  <h1
+                    className={cn(typeClass("title"), "text-foreground")}
+                    style={{ fontVariationSettings: fontWeights.semibold }}
+                  >
+                    {t.nav.workspace} ({FLOCKS_WORKSPACE_ITEMS.length})
+                  </h1>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {FLOCKS_WORKSPACE_ITEMS.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between rounded-xl border border-border/75 bg-card p-4"
+                      >
+                        <div>
+                          <p className="font-mono text-sm font-semibold text-foreground">
+                            {item.name}
+                          </p>
+                          <p className="mt-1 font-mono text-xs text-muted-foreground">
+                            {item.size} · {item.updatedAt} · {item.hash}
+                          </p>
+                        </div>
+                        <Badge size="sm" variant="dot" color="purple">
+                          {item.kind}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 单一模型接口配置 */}
+              {activeModule === "models" && <ModelSettings />}
+
+              {/* 10. 协同通道视图 */}
+              {activeModule === "channels" && (
+                <div className="space-y-4">
+                  <h1
+                    className={cn(typeClass("title"), "text-foreground")}
+                    style={{ fontVariationSettings: fontWeights.semibold }}
+                  >
+                    {t.nav.channels} ({FLOCKS_CHANNELS.length})
+                  </h1>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {FLOCKS_CHANNELS.map((ch) => (
+                      <div
+                        key={ch.id}
+                        className="flex items-center justify-between rounded-xl border border-border/75 bg-card p-4"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Badge size="sm" variant="solid" color="blue">
+                              {ch.type}
+                            </Badge>
+                            <span
+                              className={cn(
+                                typeClass("body"),
+                                "text-foreground"
+                              )}
+                              style={{
+                                fontVariationSettings: fontWeights.semibold,
+                              }}
+                            >
+                              {ch.name}
+                            </span>
+                          </div>
+                          <p
+                            className={cn(
+                              typeClass("caption"),
+                              "mt-1 text-muted-foreground"
+                            )}
+                          >
+                            {ch.target} · 今日事件 {ch.eventsToday} 条
+                          </p>
+                        </div>
+                        <Badge
+                          size="sm"
+                          variant="dot"
+                          color={ch.status === "connected" ? "green" : "gray"}
+                        >
+                          {ch.status === "connected" ? "已连接" : "已暂停"}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </main>
+
+          {/* 全局右侧可折叠 AI 副驾抽屉 */}
+          {copilotOpen && (
+            <aside className="w-full max-w-md shrink-0 border-l border-border bg-background shadow-2xl sm:w-[420px]">
+              <SecOpsChatbot
+                mode="drawer"
+                initialPrompt={copilotPrompt}
+                onCloseDrawer={() => setCopilotOpen(false)}
+              />
+            </aside>
+          )}
+        </div>
+      </SidebarInset>
+
+      {/* 全局 ⌘K 命令面板 */}
+      <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
+        <DialogContent size="lg" className="overflow-hidden p-0">
+          <div className="border-b border-border px-4 py-3">
+            <DialogTitle
+              className={cn(typeClass("subtitle"))}
+              style={{ fontVariationSettings: fontWeights.semibold }}
+            >
+              {t.common.commandPaletteTitle}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              跨 10 个模块、17 个智能体与 149 个安全工具快速跳转
+            </DialogDescription>
+            <div className="mt-2 flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
+              <Search size={15} className="text-muted-foreground" />
+              <input
+                type="text"
+                autoFocus
+                value={commandQuery}
+                onChange={(e) => setCommandQuery(e.target.value)}
+                placeholder={t.common.searchPlaceholder}
+                className={cn(
+                  typeClass("body"),
+                  "w-full bg-transparent text-foreground outline-none"
+                )}
+              />
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              typeClass("caption"),
+              "max-h-80 space-y-4 overflow-y-auto p-3"
+            )}
+          >
+            <div>
+              <p
+                className="px-2 pb-1 text-muted-foreground"
+                style={{ fontVariationSettings: fontWeights.semibold }}
+              >
+                控制台模块 ({commandResults.navMatches.length})
+              </p>
+              <div className="space-y-1">
+                {commandResults.navMatches.map((nav) => {
+                  const IconComp = FLOCKS_ICON_MAP[nav.icon]
+                  return (
+                    <button
+                      key={nav.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveModule(nav.id)
+                        setCommandOpen(false)
+                      }}
+                      className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted"
+                    >
+                      <span className="flex items-center gap-2 font-medium text-foreground">
+                        <IconComp size={14} />
+                        {t.nav[nav.id]}
+                      </span>
+                      {nav.count !== undefined && (
+                        <Badge size="sm" variant="dot" color="gray">
+                          {nav.count}
+                        </Badge>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {commandResults.agentMatches.length > 0 && (
+              <div>
+                <p
+                  className="px-2 pb-1 text-muted-foreground"
+                  style={{ fontVariationSettings: fontWeights.semibold }}
+                >
+                  安全智能体
+                </p>
+                {commandResults.agentMatches.map((ag) => (
+                  <button
+                    key={ag.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveModule("agents")
+                      setCommandOpen(false)
+                    }}
+                    className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted"
+                  >
+                    <span className="font-medium text-foreground">
+                      <ShieldCheck size={13} className="mr-1.5 inline" />
+                      {ag.name}
+                    </span>
+                    <span className="text-muted-foreground">{ag.role.zh}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {commandResults.toolMatches.length > 0 && (
+              <div>
+                <p
+                  className="px-2 pb-1 text-muted-foreground"
+                  style={{ fontVariationSettings: fontWeights.semibold }}
+                >
+                  沙箱工具
+                </p>
+                {commandResults.toolMatches.map((tl) => (
+                  <button
+                    key={tl.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveModule("tools")
+                      setToolSearch(tl.name)
+                      setCommandOpen(false)
+                    }}
+                    className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted"
+                  >
+                    <span className="font-mono font-medium text-foreground">
+                      <Terminal size={13} className="mr-1.5 inline" />
+                      {tl.name}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {TOOL_CATEGORY_LABELS[tl.category]} · {tl.runtime}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </SidebarProvider>
+  )
+}

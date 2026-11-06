@@ -1,0 +1,142 @@
+[
+  {
+    "path": ".gitignore",
+    "baseline_sha256": "a5422907ec3f6a69d2d85cee9c74933675720217e3c82037cddbad38d9e51149",
+    "modified_sha256": "c25fa188bff5c273baef158e85603189bd6d407860c248ef1dbb5e78c16f2bfd"
+  },
+  {
+    "path": "README.md",
+    "baseline_sha256": "006e7e95a24a01dfe00aa6751bfa9aa5bed7a5c513c6e32bc4320241a5c5b079",
+    "modified_sha256": "4ee965eef7f53136206d262d76410c434a5a24454997f414fe7c63c95b9f7d23"
+  },
+  {
+    "path": "app/api/auth/login/route.ts",
+    "baseline_sha256": null,
+    "modified_sha256": "5aa8ebd61e06cc1284e15e65580f90bc351f04e04efb34a81a1884c2104bd332"
+  },
+  {
+    "path": "app/api/auth/logout/route.ts",
+    "baseline_sha256": null,
+    "modified_sha256": "c83039090a036b4a602f39ee3bca6db5b0a8fda37cce89810e3a850ada670336"
+  },
+  {
+    "path": "app/api/auth/session/route.ts",
+    "baseline_sha256": null,
+    "modified_sha256": "83732b9d615ddbbd20a3eb7069a7cb349a4e3fb6a36d591e3fe53b4d1f84d1ec"
+  },
+  {
+    "path": "app/api/model-config/route.ts",
+    "baseline_sha256": null,
+    "modified_sha256": "c332d71f412362c182a3b6e3aff49c91b16cabb73ade1201d5d43bf12a0f1a18"
+  },
+  {
+    "path": "app/api/model-config/test/route.ts",
+    "baseline_sha256": null,
+    "modified_sha256": "00f93b700cf592fe1b3f2d4d5747b0d495e753de351d9cc1720479f949c6b7e9"
+  },
+  {
+    "path": "app/login/page.tsx",
+    "baseline_sha256": null,
+    "modified_sha256": "eefbebf148677dd914e17b654aab4d2ccc3a91c40fb1e1e61ec794a9130f1d7f"
+  },
+  {
+    "path": "app/page.tsx",
+    "baseline_sha256": "291e9c5cc760541e7137ac6fb1f86967f8747939b8699a4943160d9778c02eb7",
+    "modified_sha256": "f0698ce1b8774344a20b198aec3c921a4e0d0095247d3ca2f6ce28081da625e6"
+  },
+  {
+    "path": "components/platform/flocks-page.tsx",
+    "baseline_sha256": null,
+    "modified_sha256": "62bfde0c61a431b7d23cfeac442d953b1a94304bbd41fe84f8c4d9ee56f51ca1"
+  },
+  {
+    "path": "components/platform/login-form.tsx",
+    "baseline_sha256": null,
+    "modified_sha256": "850aacef23e4cec95400d3739c8800914b9d918a77f2f81ebfbc14a3da87d10d"
+  },
+  {
+    "path": "components/platform/logout-button.tsx",
+    "baseline_sha256": null,
+    "modified_sha256": "0581361dfec4c054538ffd36826f17a376598d9c4816b4135047eaca78a2ddca"
+  },
+  {
+    "path": "components/platform/model-settings.tsx",
+    "baseline_sha256": null,
+    "modified_sha256": "d40573864fd75cf8fc8680116b7f690f5988c8bb2ec2d625a8df4e4ee7219991"
+  },
+  {
+    "path": "components/sidebar-app/app-sidebar.tsx",
+    "baseline_sha256": "f466eb5eb543f86744814493faffe0145fe844e9c46fca62ee1326baab42a7f8",
+    "modified_sha256": "d28b1012e7c7345fb282f998bd52ea0112bba442b5f82489f84f4ead4c5d39bb"
+  },
+  {
+    "path": "docs/implementation/issue-2-platform.md",
+    "baseline_sha256": null,
+    "modified_sha256": "138256449e3049ca253dbf31a6559b8f88e9a922e724ebcffcf760539f804d5e"
+  },
+  {
+    "path": "eslint.config.mjs",
+    "baseline_sha256": "870f1adccecf3051cbcd9fd307cef51d7633cf510979c181a81f4b1797273493",
+    "modified_sha256": "0d6e0bdb3428f160da149bbdb02a4aa2a969fd553e59c4707dae932ddca2156c"
+  },
+  {
+    "path": "lib/server/model-config.ts",
+    "baseline_sha256": null,
+    "modified_sha256": "259131c109ae3fbe4c0a3883118e8b89e69238470b450b1291043d2f80c7d68d"
+  },
+  {
+    "path": "lib/server/platform-auth.ts",
+    "baseline_sha256": null,
+    "modified_sha256": "1f3640073bafc851e278e737b36487308fecb2df87780d6ad523693c0a78ccc7"
+  },
+  {
+    "path": "lib/server/platform-http.ts",
+    "baseline_sha256": null,
+    "modified_sha256": "49e2ea81896e8a93d991668a71437bca03ca2d9e07a103b7e6a2f45923f5f730"
+  },
+  {
+    "path": "lib/server/platform-store.ts",
+    "baseline_sha256": null,
+    "modified_sha256": "a7b6fad9885e772fad8ae52e9f510f27579ee742633bad711c784c337854c6ba"
+  },
+  {
+    "path": "next.config.ts",
+    "baseline_sha256": "96e13374d410eaa6ece8fdc0bff3e30e9fc9d7b4dc9742fd7d3162da50feac04",
+    "modified_sha256": "7d13b3a96690ff7eb232d1c9905c5f384947c7f63cb26b450a4f27672825772d"
+  },
+  {
+    "path": "package-lock.json",
+    "baseline_sha256": "ae29f958b46cb75ab6b5373efddeef6f123759ceda9d0fa6c8e014b23b5107cf",
+    "modified_sha256": "ad0915082919398dac1fba47359a4d6f6da6e1a914c0149da3a4c5e8cdf58c3f"
+  },
+  {
+    "path": "package.json",
+    "baseline_sha256": "d030d721b924d68777a248797226cf3b98932495bbc1811fef8b6658c764b43e",
+    "modified_sha256": "2248b4bb13bb0f1b2af7132f71731bf09d61e058db01b04f7e7b12d2304934e6"
+  },
+  {
+    "path": "scripts/setup-local.mjs",
+    "baseline_sha256": null,
+    "modified_sha256": "3f9f1d0db50ec62e24b9e43800b026e753c91729e2acb551d5f688cbcdf4c152"
+  },
+  {
+    "path": "tests/helpers/platform-server.mjs",
+    "baseline_sha256": null,
+    "modified_sha256": "75462807c2c1d4349d78c5901604df478d8d483ad346a58d1f7061351f21681e"
+  },
+  {
+    "path": "tests/platform-api.test.mjs",
+    "baseline_sha256": null,
+    "modified_sha256": "bdbfa6e86d654a7374960d0bbb73c27369c76c59a7a892bc39e058b9a5a129d9"
+  },
+  {
+    "path": "tests/platform-ui.test.mjs",
+    "baseline_sha256": null,
+    "modified_sha256": "359b631d837be85dc6d4def1629f4a9fa023a7b4755e603a2a70d108c23fca8d"
+  },
+  {
+    "path": "tsconfig.json",
+    "baseline_sha256": "be18523b23b78b6e1a876ddd107d330f0168bddf09d751b57e0b5edce69c66f3",
+    "modified_sha256": "226e7d5b0260e61b648c18f397ca830999c952d7c131f3641d4ed00cbed3f6af"
+  }
+]
