@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-11-07T00:16:57.669Z",
+  "status": 200,
+  "ok": true,
+  "deduplicated": false,
+  "sessionId": "ses-default",
+  "model": "deepseek-flash",
+  "userContent": "你好，请用一句话介绍你在 PennyAgent 中的职责，不要启动任何测试任务。",
+  "assistantReply": "我是 PennyAgent 的安全运营与渗透测试 AI Copilot，负责简洁准确地回答安全问答、提供技术咨询，并协助解读平台与测试相关信息（不会自动启动测试任务）。"
+}
