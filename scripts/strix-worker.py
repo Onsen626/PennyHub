@@ -27,10 +27,29 @@ def now() -> str:
 
 
 def check_runtime(source: Path) -> dict[str, Any]:
-    commit = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
-    if commit != COMMIT or hashlib.sha256((source / "uv.lock").read_bytes()).hexdigest() != LOCK_SHA256:
+    try:
+        commit = subprocess.check_output(
+            ["git", "-C", str(source), "rev-parse", "HEAD"],
+            text=True,
+            stderr=subprocess.PIPE,
+        ).strip()
+    except (FileNotFoundError, subprocess.CalledProcessError) as error:
+        raise RuntimeError(
+            f"Strix source directory is not a Git checkout: {source}"
+        ) from None
+    lockfile = source / "uv.lock"
+    if not lockfile.is_file():
+        raise RuntimeError(f"Strix dependency lock is missing: {lockfile}")
+    if commit != COMMIT or hashlib.sha256(lockfile.read_bytes()).hexdigest() != LOCK_SHA256:
         raise RuntimeError("Strix source revision or dependency lock differs from the pinned version")
-    subprocess.run(["git", "-C", str(source), "diff", "--quiet", "HEAD", "--", "strix", "pyproject.toml", "uv.lock"], check=True)
+    try:
+        subprocess.run(
+            ["git", "-C", str(source), "diff", "--quiet", "HEAD", "--", "strix", "pyproject.toml", "uv.lock"],
+            check=True,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError("Strix source or dependency files have local changes") from None
     canonical = lambda name: re.sub(r"[-_.]+", "-", name.lower())
     locked: dict[str, set[str]] = {}
     for package in tomllib.loads((source / "uv.lock").read_text())["package"]:
