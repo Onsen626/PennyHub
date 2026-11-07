@@ -117,13 +117,13 @@
         10,
         11,
         12,
-        18
+        21
       ]
     },
     {
-      "url": "https://github.com/Onsen626/PennyHub/issues/18",
-      "number": 18,
-      "title": "[PoC 13] 按 Strix 原生黑盒参数重构 Web App Pentest 创建页面",
+      "url": "https://github.com/Onsen626/PennyHub/issues/21",
+      "number": 21,
+      "title": "根据开源版本的 Strix 重构渗透测试业务流程",
       "ticket": 13,
       "blocked_by": [
         3
