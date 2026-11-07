@@ -5,13 +5,21 @@ import path from "node:path"
 
 // Persistent single-machine PoC data. Never import this module into client code.
 export function dataDirectory() {
-  return path.resolve(process.env.PENNY_DATA_DIR || ".pennyagent")
+  return path.resolve(
+    /* turbopackIgnore: true */ process.env.PENNY_DATA_DIR || ".pennyagent"
+  )
 }
 
 export async function readRecord<T>(name: string): Promise<T | null> {
   try {
     return JSON.parse(
-      await readFile(path.join(dataDirectory(), name), "utf8")
+      await readFile(
+        /* turbopackIgnore: true */ path.join(
+          /* turbopackIgnore: true */ dataDirectory(),
+          name
+        ),
+        "utf8"
+      )
     ) as T
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null
@@ -20,7 +28,10 @@ export async function readRecord<T>(name: string): Promise<T | null> {
 }
 
 export async function writeRecord(name: string, value: unknown) {
-  const destination = path.join(dataDirectory(), name)
+  const destination = path.join(
+    /* turbopackIgnore: true */ dataDirectory(),
+    name
+  )
   await mkdir(path.dirname(destination), { recursive: true, mode: 0o700 })
   const temporary = `${destination}.${randomBytes(8).toString("hex")}.tmp`
   await writeFile(temporary, JSON.stringify(value), { mode: 0o600 })

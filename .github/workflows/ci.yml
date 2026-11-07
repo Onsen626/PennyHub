@@ -31,6 +31,14 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check native adapter syntax
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/penny-python-cache
+        run: python3 -m py_compile scripts/strix-worker.py
       - name: Install Chromium and system dependencies
         run: npx --no-install playwright install --with-deps chromium
       - name: Prepare logs
@@ -44,6 +52,8 @@ jobs:
         run: npm run test:api 2>&1 | tee "$CI_LOG_DIR/api.log"
       - name: Browser tests
         run: npm run test:ui 2>&1 | tee "$CI_LOG_DIR/browser.log"
+      - name: Pentest behavior tests
+        run: npm run test:pentests 2>&1 | tee "$CI_LOG_DIR/pentests.log"
       - name: Production build
         run: npm run build 2>&1 | tee "$CI_LOG_DIR/build.log"
       - name: Upload check logs and browser screenshot

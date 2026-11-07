@@ -2,6 +2,7 @@ export type Lang = "zh" | "en";
 
 export type FlocksModuleId =
   | "home"
+  | "dashboard"
   | "sessions"
   | "tasks"
   | "workspace"
@@ -38,7 +39,7 @@ export interface FlocksNavItem {
 
 export const FLOCKS_NAV_ITEMS: FlocksNavItem[] = [
   { id: "home", section: "home", icon: "home" },
-  { id: "sessions", section: "workbench", icon: "message-square" },
+  { id: "dashboard", section: "workbench", icon: "activity" },
   { id: "tasks", section: "workbench", icon: "check-square" },
   { id: "workspace", section: "workbench", icon: "folder" },
   { id: "agents", section: "smith", icon: "bot", count: 17 },
@@ -416,9 +417,10 @@ export const zhCopy = {
   },
   nav: {
     home: "控制台首页",
+    dashboard: "Dashboard",
     sessions: "Sessions",
-    tasks: "任务调度",
-    workspace: "证据工作区",
+    tasks: "Pentests",
+    workspace: "现有风险",
     agents: "Agents",
     workflows: "Workflows",
     skills: "Skills",
@@ -457,6 +459,7 @@ export const zhCopy = {
   common: {
     searchPlaceholder: "搜索智能体、工具、CVE 编号，或按 ⌘K 唤起命令面板...",
     copilotToggle: "AI Copilot",
+    startPentest: "开始渗透测试",
     newSession: "新建渗透会话",
     runDiagnostic: "快速攻击面巡检",
     filterAll: "全部",

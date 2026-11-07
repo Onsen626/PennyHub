@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   Terminal,
   Play,
-  ExternalLink,
 } from "lucide-react"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import {
@@ -37,8 +36,13 @@ import {
 } from "@/components/sidebar-app/app-sidebar"
 import { SidebarInsetTopbar } from "@/components/sidebar-app/inset-topbar"
 import { ModelSettings } from "@/components/platform/model-settings"
+import { PentestsPanel } from "@/components/platform/pentests-panel"
 import { LogoutButton } from "@/components/platform/logout-button"
-import { SecOpsChatbot } from "@/components/chat/secops-chatbot"
+import {
+  SecOpsChatbot,
+  type PendingChatSubmission,
+} from "@/components/chat/secops-chatbot"
+import { HomeChatComposer } from "@/components/chat/home-chat-composer"
 import {
   zhCopy,
   FLOCKS_NAV_ITEMS,
@@ -47,8 +51,6 @@ import {
   FLOCKS_WORKFLOWS,
   FLOCKS_SKILLS,
   FLOCKS_TOOLS,
-  FLOCKS_CHANNELS,
-  FLOCKS_TASKS,
   FLOCKS_WORKSPACE_ITEMS,
   type FlocksModuleId,
   type FlocksTool,
@@ -98,12 +100,32 @@ const TOOL_CATEGORY_LABELS: Record<string, string> = {
   OSINT: "开源情报",
 }
 
-export default function FlocksPage() {
-  const [activeModule, setActiveModule] = useState<FlocksModuleId>("home")
-  const [copilotOpen, setCopilotOpen] = useState(false)
-  const [copilotPrompt, setCopilotPrompt] = useState<string | undefined>(
-    undefined
-  )
+export default function FlocksPage({
+  initialModule = "home",
+  initialTaskId,
+}: {
+  initialModule?: FlocksModuleId
+  initialTaskId?: string
+}) {
+  const [activeModule, setActiveModule] =
+    useState<FlocksModuleId>(initialModule)
+
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (activeModule === "tasks") url.searchParams.set("view", "pentests")
+    else {
+      url.searchParams.delete("view")
+      url.searchParams.delete("task")
+    }
+    window.history.replaceState(null, "", url)
+  }, [activeModule])
+  const [copilotMode, setCopilotMode] = useState<
+    "closed" | "drawer" | "fullscreen"
+  >("closed")
+  const [chatDraft, setChatDraft] = useState("")
+  const [chatFiles, setChatFiles] = useState<File[]>([])
+  const [pendingChatSubmission, setPendingChatSubmission] =
+    useState<PendingChatSubmission | null>(null)
   const [commandOpen, setCommandOpen] = useState(false)
   const [commandQuery, setCommandQuery] = useState("")
 
@@ -113,6 +135,7 @@ export default function FlocksPage() {
   const [skillFilter, setSkillFilter] = useState<string>("all")
 
   const t = zhCopy
+  const isChatOpen = copilotMode !== "closed"
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -125,9 +148,28 @@ export default function FlocksPage() {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [])
 
+  const handleSelectModule = (id: FlocksModuleId) => {
+    setActiveModule(id)
+    if (copilotMode === "fullscreen") {
+      setCopilotMode("closed")
+    }
+  }
+
   const launchInCopilot = (promptText: string) => {
-    setCopilotPrompt(promptText)
-    setCopilotOpen(true)
+    setChatDraft(promptText)
+    setCopilotMode("drawer")
+  }
+
+  const handleHomeChatSubmit = (text: string, attachedFiles: File[]) => {
+    const clientMessageId = `cmsg-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`
+    setPendingChatSubmission({
+      clientMessageId,
+      text,
+      files: attachedFiles,
+    })
+    setCopilotMode("fullscreen")
   }
 
   const filteredAgents = useMemo(() => {
@@ -176,90 +218,69 @@ export default function FlocksPage() {
     <SidebarProvider>
       <AppSidebar
         activeModule={activeModule}
-        onSelectModule={setActiveModule}
+        onSelectModule={handleSelectModule}
         onOpenCommandPalette={() => setCommandOpen(true)}
-        onOpenCopilot={() => setCopilotOpen((v) => !v)}
+        onOpenCopilot={
+          activeModule === "home"
+            ? undefined
+            : () =>
+                setCopilotMode((m) => (m === "closed" ? "drawer" : "closed"))
+        }
       />
 
-      <SidebarInset className="flex min-h-dvh flex-col bg-neutral-50/60 dark:bg-background">
+      <SidebarInset className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-neutral-50/60 md:h-[calc(100dvh-1rem)] md:max-h-[calc(100dvh-1rem)] dark:bg-background">
         {/* 顶部栏 */}
         <SidebarInsetTopbar className="justify-between border-b border-border/60 bg-background/80 px-4 backdrop-blur-md">
           <div className="ml-auto flex items-center gap-2">
-            <Button
-              size="sm"
-              variant={copilotOpen ? "primary" : "secondary"}
-              leadingIcon={Sparkles}
-              onClick={() => setCopilotOpen((v) => !v)}
-            >
-              {t.common.copilotToggle}
-            </Button>
+            {isChatOpen ? (
+              <Button
+                size="sm"
+                variant="primary"
+                leadingIcon={ShieldCheck}
+                onClick={() => {
+                  setActiveModule("tasks")
+                  setCopilotMode("closed")
+                }}
+              >
+                {t.common.startPentest}
+              </Button>
+            ) : activeModule !== "home" ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                leadingIcon={Sparkles}
+                onClick={() => setCopilotMode("drawer")}
+              >
+                {t.common.copilotToggle}
+              </Button>
+            ) : null}
             <LogoutButton />
           </div>
         </SidebarInsetTopbar>
 
-        {/* 主工作区 + 右侧可折叠 AI 副驾抽屉 */}
-        <div className="relative flex flex-1 overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-5 sm:p-8">
+        {/* 主工作区 + AI Copilot 双形态（全屏主工作区 / 右侧抽屉） */}
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
+          <main
+            className={cn(
+              "min-h-0 flex-1 overflow-y-auto p-5 sm:p-8",
+              copilotMode === "fullscreen" && "hidden"
+            )}
+          >
             <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
               {/* 1. 控制台首页 */}
               {activeModule === "home" && (
+                <HomeChatComposer
+                  draft={chatDraft}
+                  onDraftChange={setChatDraft}
+                  files={chatFiles}
+                  onFilesChange={setChatFiles}
+                  onSubmit={handleHomeChatSubmit}
+                />
+              )}
+
+              {/* 1.5 AI 安全工作台 - Dashboard */}
+              {activeModule === "dashboard" && (
                 <>
-                  <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#231924] via-[#131824] to-[#0f172a] p-7 text-white shadow-md sm:p-10">
-                    <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-red-500/15 blur-3xl" />
-                    <div className="pointer-events-none absolute -right-24 -bottom-24 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
-
-                    <div className="relative z-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
-                      <div className="max-w-2xl space-y-3.5">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-red-200 backdrop-blur-xs">
-                          <Sparkles size={13} className="text-red-400" />
-                          {t.hero.badge}
-                        </span>
-
-                        <h1
-                          className="text-4xl tracking-tight text-[#ef4444] sm:text-5xl"
-                          style={{ fontVariationSettings: fontWeights.bold }}
-                        >
-                          {t.hero.title}
-                        </h1>
-
-                        <h2
-                          className="text-lg text-white sm:text-xl"
-                          style={{
-                            fontVariationSettings: fontWeights.semibold,
-                          }}
-                        >
-                          {t.hero.headline}
-                        </h2>
-
-                        <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
-                          {t.hero.description}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setActiveModule("sessions")}
-                          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#e11d48] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#be123c]"
-                        >
-                          <span>{t.hero.setupGuide}</span>
-                          <ChevronRight size={16} />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            launchInCopilot("执行快速外网攻击面与高危 CVE 巡检")
-                          }
-                          className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-xs transition-colors hover:bg-white/15"
-                        >
-                          <ExternalLink size={16} />
-                          <span>{t.hero.openSource}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </section>
-
                   <Banner status="info" contrast="low" dismissible>
                     <BannerTitle>
                       红队授权门禁待确认：支付网关 v3 (SES-101)
@@ -272,7 +293,7 @@ export default function FlocksPage() {
                     <BannerActions>
                       <BannerAction
                         variant="primary"
-                        onClick={() => setActiveModule("sessions")}
+                        onClick={() => setCopilotMode("fullscreen")}
                       >
                         前往审批
                       </BannerAction>
@@ -283,7 +304,7 @@ export default function FlocksPage() {
                   <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <button
                       type="button"
-                      onClick={() => setActiveModule("sessions")}
+                      onClick={() => setCopilotMode("fullscreen")}
                       className="group flex cursor-pointer items-center gap-4 rounded-2xl border border-border/70 bg-card p-5 text-left shadow-2xs transition-all hover:border-blue-500/40 hover:shadow-md"
                     >
                       <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
@@ -454,13 +475,6 @@ export default function FlocksPage() {
                     })}
                   </section>
                 </>
-              )}
-
-              {/* 2. 渗透会话视图 */}
-              {activeModule === "sessions" && (
-                <div className="h-[calc(100dvh-7.5rem)] min-h-[560px]">
-                  <SecOpsChatbot mode="workspace" />
-                </div>
               )}
 
               {/* 3. 安全智能体视图 [17] */}
@@ -865,78 +879,9 @@ export default function FlocksPage() {
                 </div>
               )}
 
-              {/* 7. 任务调度视图 */}
+              {/* Pentests：持久任务列表、创建与真实执行详情 */}
               {activeModule === "tasks" && (
-                <div className="space-y-4">
-                  <h1
-                    className={cn(typeClass("title"), "text-foreground")}
-                    style={{ fontVariationSettings: fontWeights.semibold }}
-                  >
-                    {t.nav.tasks} ({FLOCKS_TASKS.length})
-                  </h1>
-                  <div className="space-y-3">
-                    {FLOCKS_TASKS.map((tsk) => (
-                      <div
-                        key={tsk.id}
-                        className="flex flex-col justify-between gap-3 rounded-xl border border-border/75 bg-card p-4 sm:flex-row sm:items-center"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              size="sm"
-                              variant="solid"
-                              color={
-                                tsk.severity === "critical"
-                                  ? "red"
-                                  : tsk.severity === "high"
-                                    ? "orange"
-                                    : "blue"
-                              }
-                            >
-                              {tsk.severity === "critical"
-                                ? "严重"
-                                : tsk.severity === "high"
-                                  ? "高危"
-                                  : tsk.severity === "medium"
-                                    ? "中危"
-                                    : "低危"}
-                            </Badge>
-                            <span
-                              className={cn(
-                                typeClass("body"),
-                                "text-foreground"
-                              )}
-                              style={{
-                                fontVariationSettings: fontWeights.semibold,
-                              }}
-                            >
-                              {tsk.title.zh}
-                            </span>
-                          </div>
-                          <p
-                            className={cn(
-                              typeClass("caption"),
-                              "text-muted-foreground"
-                            )}
-                          >
-                            {tsk.workflow} · 启动于 {tsk.startedAt}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="h-2 w-28 overflow-hidden rounded-full bg-muted">
-                            <div
-                              className="h-full bg-blue-500 transition-all"
-                              style={{ width: `${tsk.progress}%` }}
-                            />
-                          </div>
-                          <span className="w-10 text-right font-mono text-xs">
-                            {tsk.progress}%
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <PentestsPanel initialTaskId={initialTaskId} />
               )}
 
               {/* 8. 证据工作区视图 */}
@@ -974,72 +919,66 @@ export default function FlocksPage() {
               {/* 单一模型接口配置 */}
               {activeModule === "models" && <ModelSettings />}
 
-              {/* 10. 协同通道视图 */}
+              {/* 10. 协同通道视图（空入口） */}
               {activeModule === "channels" && (
                 <div className="space-y-4">
                   <h1
                     className={cn(typeClass("title"), "text-foreground")}
                     style={{ fontVariationSettings: fontWeights.semibold }}
                   >
-                    {t.nav.channels} ({FLOCKS_CHANNELS.length})
+                    {t.nav.channels}
                   </h1>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {FLOCKS_CHANNELS.map((ch) => (
-                      <div
-                        key={ch.id}
-                        className="flex items-center justify-between rounded-xl border border-border/75 bg-card p-4"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <Badge size="sm" variant="solid" color="blue">
-                              {ch.type}
-                            </Badge>
-                            <span
-                              className={cn(
-                                typeClass("body"),
-                                "text-foreground"
-                              )}
-                              style={{
-                                fontVariationSettings: fontWeights.semibold,
-                              }}
-                            >
-                              {ch.name}
-                            </span>
-                          </div>
-                          <p
-                            className={cn(
-                              typeClass("caption"),
-                              "mt-1 text-muted-foreground"
-                            )}
-                          >
-                            {ch.target} · 今日事件 {ch.eventsToday} 条
-                          </p>
-                        </div>
-                        <Badge
-                          size="sm"
-                          variant="dot"
-                          color={ch.status === "connected" ? "green" : "gray"}
-                        >
-                          {ch.status === "connected" ? "已连接" : "已暂停"}
-                        </Badge>
-                      </div>
-                    ))}
+                  <div className="rounded-2xl border border-dashed border-border/80 bg-card p-8 text-center">
+                    <p
+                      className={cn(typeClass("subtitle"), "text-foreground")}
+                      style={{ fontVariationSettings: fontWeights.semibold }}
+                    >
+                      暂未配置外部协同通道
+                    </p>
+                    <p
+                      className={cn(
+                        typeClass("caption"),
+                        "mt-1.5 text-muted-foreground"
+                      )}
+                    >
+                      当前保留导航入口，尚未接入外部消息或告警通知渠道。
+                    </p>
                   </div>
                 </div>
               )}
             </div>
           </main>
 
-          {/* 全局右侧可折叠 AI 副驾抽屉 */}
-          {copilotOpen && (
-            <aside className="w-full max-w-md shrink-0 border-l border-border bg-background shadow-2xl sm:w-[420px]">
-              <SecOpsChatbot
-                mode="drawer"
-                initialPrompt={copilotPrompt}
-                onCloseDrawer={() => setCopilotOpen(false)}
-              />
-            </aside>
-          )}
+          {/* 全局共享 AI Copilot（主内容区全屏 / 右侧可折叠抽屉） */}
+          <aside
+            aria-label={
+              copilotMode === "fullscreen"
+                ? "AI Copilot 全屏工作区"
+                : "AI Copilot 侧边栏"
+            }
+            className={cn(
+              copilotMode === "closed"
+                ? "hidden"
+                : copilotMode === "fullscreen"
+                  ? "flex h-full max-h-full min-h-0 flex-1 overflow-hidden p-4 sm:p-6"
+                  : "flex h-full max-h-full min-h-0 w-full max-w-md shrink-0 flex-col overflow-hidden border-l border-border bg-background shadow-2xl sm:w-[420px]"
+            )}
+          >
+            <SecOpsChatbot
+              mode={copilotMode === "fullscreen" ? "workspace" : "drawer"}
+              visible={isChatOpen}
+              draft={chatDraft}
+              onDraftChange={setChatDraft}
+              files={chatFiles}
+              onFilesChange={setChatFiles}
+              pendingSubmission={pendingChatSubmission}
+              onPendingSubmissionHandled={() => setPendingChatSubmission(null)}
+              onSwitchMode={(next) =>
+                setCopilotMode(next === "workspace" ? "fullscreen" : "drawer")
+              }
+              onCloseDrawer={() => setCopilotMode("closed")}
+            />
+          </aside>
         </div>
       </SidebarInset>
 
@@ -1054,7 +993,7 @@ export default function FlocksPage() {
               {t.common.commandPaletteTitle}
             </DialogTitle>
             <DialogDescription className="sr-only">
-              跨 10 个模块、17 个智能体与 149 个安全工具快速跳转
+              跨模块、智能体与安全工具快速跳转
             </DialogDescription>
             <div className="mt-2 flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
               <Search size={15} className="text-muted-foreground" />
@@ -1093,7 +1032,7 @@ export default function FlocksPage() {
                       key={nav.id}
                       type="button"
                       onClick={() => {
-                        setActiveModule(nav.id)
+                        handleSelectModule(nav.id)
                         setCommandOpen(false)
                       }}
                       className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted"
