@@ -65,6 +65,7 @@ flowchart TB
   API --> PH
   PH --> PA
   PT --> PS
+```
 
 ## 2. 执行链路
 
