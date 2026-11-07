@@ -1,0 +1,106 @@
+{
+  "issue": "https://github.com/Onsen626/PennyHub/issues/5",
+  "issue_title": "[PoC 04] Pentest 真实执行",
+  "recorded_at": "2026-11-07T08:25:00Z",
+  "scope_assessment": {
+    "satisfies_issue": false,
+    "rationale": "本次是手工执行的 Strix 黑盒测试与证据留档，不包含 issue #5 要求的产品侧 Pentest 创建/接口/持久化/页面路径。仅覆盖验收项最后一条中的“真实本地应用集成记录”部分。",
+    "acceptance_covered": [
+      "包含页面/公开接口行为测试及真实本地应用集成记录，保留原始输入且不部署修改（仅“真实本地应用集成记录”证据）"
+    ],
+    "acceptance_not_covered": [
+      "创建入口提供 Code Review 与 Pentest；Pentest 必填目标地址、源码可选",
+      "账号登录说明、Cookie、请求头、多身份，敏感资料单独处理",
+      "目标按执行容器视角验证可达性并在失败时提示实际原因",
+      "配置汇总确认后调用真实 Strix",
+      "仅地址 / 地址加源码两条路径完成测试",
+      "保存配置、事件、发现与复现证据",
+      "页面与公开接口行为测试"
+    ]
+  },
+  "run": {
+    "tool": "strix 1.7.0",
+    "source": "/tmp/strix-achievements-repo",
+    "commit": "09536cf1481731c790995bd8060db19a3b75ff48",
+    "model": "openai/deepseek-flash (LLM_API_BASE=https://api.deepseek.com, chat_completions)",
+    "scan_mode": "quick",
+    "budget_usd_cap": 2,
+    "target": "http://192.168.0.82:8000",
+    "target_app": "WebMon 网站监测系统 (FastAPI + SPA)",
+    "extra_input": "OpenAPI 3.1.0 规格 (61 paths / 78 operations)",
+    "started_at": "2026-11-07T07:50:34Z",
+    "finished_at": "2026-11-07T08:10:09Z",
+    "termination": "interrupted by operator",
+    "agents": 5,
+    "turns": 487,
+    "cost_usd": 0.4116,
+    "tokens": {
+      "input": 45500000,
+      "cached_input": 44700000,
+      "output": 253600
+    }
+  },
+  "results": {
+    "findings": [
+      {
+        "id": "vuln-0001",
+        "severity": "critical",
+        "cvss": 9.1,
+        "cwe": "CWE-307",
+        "title": "Unauthenticated superadmin takeover — login lockout keyed on X-Forwarded-For plus guessable admin password",
+        "endpoint": "POST /api/auth/login",
+        "confidence": "high",
+        "evidence_summary": "锁定计数以客户端可控的 X-Forwarded-For 为键（不带头 429、换头 401），5 次上限失效；默认超管口令在 1406 条候选内约 12 分钟命中，取得 perms=[\"*\"] 会话并按只读方式验证特权数据可读。"
+      },
+      {
+        "id": "vuln-0002",
+        "severity": "medium",
+        "cvss": 5.3,
+        "cwe": "CWE-208",
+        "title": "Username enumeration through response timing on /api/auth/login",
+        "endpoint": "POST /api/auth/login",
+        "confidence": "high",
+        "evidence_summary": "bcrypt 仅对存在的用户执行：admin 响应 0.6-0.8s，不存在用户 0.06-0.1s，构成账号存在性 oracle。"
+      }
+    ],
+    "coverage": {
+      "total": 17,
+      "reported": 3,
+      "no_issue_found": 8,
+      "ruled_out": 3,
+      "needs_follow_up": 3
+    },
+    "not_claimed": [
+      "会话 cookie HMAC 签名密钥（5 万组合字典未爆破出，标为待跟进而非漏洞）",
+      "/api/notify/profiles 的证据绑定"
+    ]
+  },
+  "side_effects_and_cleanup": {
+    "created_accounts": 7,
+    "created_roles": 1,
+    "deleted": {
+      "users": [2, 3, 4, 7, 10],
+      "roles": ["pentest_ro"],
+      "result": "HTTP 200"
+    },
+    "blocked": {
+      "users": [5, 6],
+      "reason": "两个 active superadmin（pt_adminh / pt_esc_user）在 API 层被硬保护：DELETE、PATCH role_code、PATCH is_active 均返回 400（不能删除/变更/停用超级管理员）",
+      "required_action": "服务端改库：DELETE FROM users WHERE id IN (5,6)（或先将 role_id 改为非超管）；并建议将保护逻辑改为“至少保留一个 superadmin”"
+    },
+    "not_removable": [
+      "审计日志行（无删除接口）",
+      "巡检报告 73/74（已 sent；未确认 74 是否为本次探针产物）"
+    ]
+  },
+  "artifacts": {
+    "location": "outside repository (contains sensitive evidence)",
+    "paths": [
+      "~/pennyagent-pentest/runs/strix_runs/192-168-0-82-8000_b4d4/",
+      "~/pennyagent-pentest/notes/webmon-probe-artifacts.md",
+      "~/pennyagent-pentest/notes/cleanup-archive/",
+      "~/pennyagent-pentest/notes/targets.md"
+    ],
+    "redaction": "本记录不含凭据、Webhook 地址、被监测站点地址与审计明细。"
+  }
+}
