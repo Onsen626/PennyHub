@@ -14,7 +14,7 @@
     "test:api": "node --test tests/platform-api.test.mjs",
     "test:ui": "node --test tests/platform-ui.test.mjs",
     "test": "npm run test:api && npm run test:ui && npm run test:pentests",
-    "test:pentests": "node --test --test-concurrency=1 tests/pentests.test.mjs tests/pentest-runtime.test.mjs"
+    "test:pentests": "node --test --test-concurrency=1 tests/pentests.test.mjs tests/pentest-runtime.test.mjs tests/pentest-ui.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

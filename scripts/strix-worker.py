@@ -121,14 +121,10 @@ class Worker:
         from strix.report.state import ReportState, set_global_report_state
 
         targets = list(self.task["targets"])
-        if self.task.get("sourceDirectory"):
-            targets.append(str(self.directory / "source"))
         args = argparse.Namespace(target=targets, target_list=[])
         build_targets_info(args)
         local_sources = collect_local_sources(args.targets_info)
         instructions = "\n\n".join(f"{key}: {value}" for key, value in self.task["context"].items() if value)
-        if self.task["kind"] == "code_review":
-            instructions += "\nReview the provided source copy only. Do not target live services, push commits or deploy changes."
         extra_files = []
         for index, file in enumerate(self.task["referenceFiles"]):
             origin = Path(file)
