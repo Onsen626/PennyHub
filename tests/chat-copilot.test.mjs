@@ -384,6 +384,17 @@ test("browser verifies Home composer, fullscreen/drawer switching, state retenti
     await expect(
       topbar.getByRole("button", { name: "Toggle Sidebar", exact: true })
     ).toHaveCount(0)
+    // Collapsing the sidebar reveals the restore button in the topbar, and clicking it expands the sidebar again
+    await sidebar.locator('[data-sidebar="rail"]').click()
+    await expect(sidebar).toHaveAttribute("data-state", "collapsed")
+    const restoreSidebarBtn = topbar.getByRole("button", {
+      name: "Toggle Sidebar",
+      exact: true,
+    })
+    await expect(restoreSidebarBtn).toBeVisible()
+    await restoreSidebarBtn.click()
+    await expect(sidebar).toHaveAttribute("data-state", "expanded")
+    await expect(restoreSidebarBtn).toHaveCount(0)
     await expect(
       page.getByRole("heading", { name: "今天需要验证哪个安全目标？", exact: true })
     ).toBeVisible()
