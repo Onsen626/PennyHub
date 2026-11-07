@@ -470,7 +470,7 @@ export const zhCopy = {
     launch: "载入会话",
     emptyTitle: "暂无匹配记录",
     emptyDesc: "请尝试调整筛选条件，或直接发起新的安全测试会话。",
-    settings: "系统设置",
+    settings: "设置",
     commandPaletteTitle: "PennyAgent 全局命令与快速跳转",
   },
 } as const;
