@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useTheme } from "next-themes";
 import {
   Home,
   MessageSquare,
@@ -29,9 +28,8 @@ import {
   SidebarMenuButton,
   type SidebarProps,
 } from "@/components/ui/sidebar";
-import { Tooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { useIcons, type IconComponent } from "@/lib/icon-context";
+import type { IconComponent } from "@/lib/icon-context";
 import { typeClass } from "@/lib/size-context";
 import { fontWeights } from "@/lib/font-weight";
 import {
@@ -39,7 +37,6 @@ import {
   WorkspaceTile,
 } from "@/components/sidebar-app/workspace-header";
 import { SidebarSearchField } from "@/components/sidebar-app/search-field";
-import { SettingsDialog } from "@/components/dialog-sidebar/settings-dialog";
 import {
   FLOCKS_NAV_ITEMS,
   zhCopy,
@@ -82,22 +79,16 @@ export function AppSidebar({
   lang: _unusedLang,
   onLangChange: _unusedOnLangChange,
   onOpenCommandPalette,
-  onOpenCopilot,
+  onOpenCopilot: _unusedOnOpenCopilot,
   ...props
 }: AppSidebarProps) {
   void _unusedLang;
   void _unusedOnLangChange;
+  void _unusedOnOpenCopilot;
   const [internalModule, setInternalModule] = useState<FlocksModuleId>("home");
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const activeModule = controlledModule ?? internalModule;
   const t = zhCopy;
-
-  const { resolvedTheme, setTheme } = useTheme();
-  const icons = useIcons();
-  const SettingsIcon = icons.settings;
-  const MoonIcon = icons.moon;
-  const SparklesIcon = icons.lightbulb;
 
   const handleSelect = (id: FlocksModuleId) => {
     if (controlledModule === undefined) setInternalModule(id);
@@ -105,150 +96,86 @@ export function AppSidebar({
   };
 
   return (
-    <>
-      <Sidebar variant="inset" {...props}>
-        <SidebarHeader className="border-b border-border/60 pb-3">
-          <SidebarWorkspaceHeader
-            name={t.brand}
-            tile={
-              <WorkspaceTile className="bg-red-600 text-white">F</WorkspaceTile>
-            }
-          />
-          <div className="mt-1 flex flex-col gap-1 px-0.5">
-            <div
-              onClick={() => onOpenCommandPalette?.()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onOpenCommandPalette?.();
-                }
-              }}
-              className="cursor-pointer"
-            >
-              <SidebarSearchField placeholder={t.common.searchPlaceholder} />
-            </div>
+    <Sidebar variant="inset" {...props}>
+      <SidebarHeader className="border-b border-border/60 pb-3">
+        <SidebarWorkspaceHeader
+          name={t.brand}
+          tile={
+            <WorkspaceTile className="bg-red-600 text-white">F</WorkspaceTile>
+          }
+        />
+        <div className="mt-1 flex flex-col gap-1 px-0.5">
+          <div
+            onClick={() => onOpenCommandPalette?.()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpenCommandPalette?.();
+              }
+            }}
+            className="cursor-pointer"
+          >
+            <SidebarSearchField placeholder={t.common.searchPlaceholder} />
           </div>
-        </SidebarHeader>
+        </div>
+      </SidebarHeader>
 
-        <SidebarContent className="py-2">
-          {SECTION_ORDER.map((sectionId) => {
-            const items = FLOCKS_NAV_ITEMS.filter(
-              (item) => item.section === sectionId
-            );
-            return (
-              <SidebarGroup key={sectionId}>
-                <SidebarGroupLabel
-                  className={cn(
-                    typeClass("caption", "compact"),
-                    "text-muted-foreground/80"
-                  )}
-                  style={{ fontVariationSettings: fontWeights.semibold }}
-                >
-                  {t.sections[sectionId]}
-                </SidebarGroupLabel>
-                <SidebarMenu>
-                  {items.map((item) => {
-                    const IconComp = FLOCKS_ICON_MAP[item.icon];
-                    const isSelected = activeModule === item.id;
-                    return (
-                      <SidebarMenuItem key={item.id}>
-                        <SidebarMenuButton
-                          icon={IconComp}
-                          isActive={isSelected}
-                          onClick={() => handleSelect(item.id)}
-                        >
-                          <span className="truncate [text-box:trim-both_cap_alphabetic] py-1 -my-1">
-                            {t.nav[item.id]}
-                          </span>
-                          {item.count !== undefined && item.id !== "models" && (
-                            <span className="ml-auto inline-flex items-center">
-                              <Badge
-                                size="sm"
-                                variant="dot"
-                                color={isSelected ? "blue" : "gray"}
-                                className="tabular-nums"
-                              >
-                                {item.count}
-                              </Badge>
-                            </span>
-                          )}
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroup>
-            );
-          })}
-        </SidebarContent>
-
-        <SidebarFooter className="border-t border-border/60 pt-3">
-          <div className="flex items-center justify-between gap-2 px-2 pb-1">
-            {/* 纯中文版本与平台签名 */}
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <span
+      <SidebarContent className="py-2">
+        {SECTION_ORDER.map((sectionId) => {
+          const items = FLOCKS_NAV_ITEMS.filter(
+            (item) => item.section === sectionId
+          );
+          return (
+            <SidebarGroup key={sectionId}>
+              <SidebarGroupLabel
                 className={cn(
                   typeClass("caption", "compact"),
-                  "truncate text-muted-foreground"
+                  "text-muted-foreground/80"
                 )}
                 style={{ fontVariationSettings: fontWeights.semibold }}
               >
-                {t.version}
-              </span>
-              <span
-                className={cn(
-                  typeClass("micro", "compact"),
-                  "truncate text-muted-foreground/75"
-                )}
-              >
-                {t.subtitle}
-              </span>
-            </div>
+                {t.sections[sectionId]}
+              </SidebarGroupLabel>
+              <SidebarMenu>
+                {items.map((item) => {
+                  const IconComp = FLOCKS_ICON_MAP[item.icon];
+                  const isSelected = activeModule === item.id;
+                  return (
+                    <SidebarMenuItem key={item.id}>
+                      <SidebarMenuButton
+                        icon={IconComp}
+                        isActive={isSelected}
+                        onClick={() => handleSelect(item.id)}
+                      >
+                        <span className="truncate [text-box:trim-both_cap_alphabetic] py-1 -my-1">
+                          {t.nav[item.id]}
+                        </span>
+                        {item.count !== undefined && item.id !== "models" && (
+                          <span className="ml-auto inline-flex items-center">
+                            <Badge
+                              size="sm"
+                              variant="dot"
+                              color={isSelected ? "blue" : "gray"}
+                              className="tabular-nums"
+                            >
+                              {item.count}
+                            </Badge>
+                          </span>
+                        )}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroup>
+          );
+        })}
+      </SidebarContent>
 
-            <div className="flex shrink-0 items-center gap-1">
-              {onOpenCopilot && (
-                <Tooltip content={t.common.copilotToggle} side="top">
-                  <button
-                    type="button"
-                    aria-label={t.common.copilotToggle}
-                    onClick={onOpenCopilot}
-                    className="flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-hover hover:text-foreground transition-colors cursor-pointer"
-                  >
-                    <SparklesIcon size={15} strokeWidth={1.6} />
-                  </button>
-                </Tooltip>
-              )}
-              <Tooltip content={t.common.settings} side="top">
-                <button
-                  type="button"
-                  aria-label={t.common.settings}
-                  onClick={() => setSettingsOpen(true)}
-                  className="flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-hover hover:text-foreground transition-colors cursor-pointer"
-                >
-                  <SettingsIcon size={15} strokeWidth={1.6} />
-                </button>
-              </Tooltip>
-              <Tooltip content="切换主题" side="top">
-                <button
-                  type="button"
-                  aria-label="切换主题"
-                  onClick={() =>
-                    setTheme(resolvedTheme === "dark" ? "light" : "dark")
-                  }
-                  className="flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-hover hover:text-foreground transition-colors cursor-pointer"
-                >
-                  <MoonIcon size={15} strokeWidth={1.6} />
-                </button>
-              </Tooltip>
-            </div>
-          </div>
-        </SidebarFooter>
-      </Sidebar>
-
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-    </>
+      <SidebarFooter className="border-t border-border/60 pt-3" />
+    </Sidebar>
   );
 }
 export default AppSidebar;

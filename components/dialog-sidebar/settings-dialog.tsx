@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useTheme } from "next-themes";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { InputGroup, InputField } from "@/components/ui/input-group";
+import { LogoutButton } from "@/components/platform/logout-button";
 import { useIcons, type IconName } from "@/lib/icon-context";
 import { cn } from "@/lib/utils";
 import { fontWeights } from "@/lib/font-weight";
@@ -52,9 +54,9 @@ interface SettingsSection {
 }
 
 const SECTIONS: SettingsSection[] = [
-  { id: "general", label: "General", icon: "settings", description: "Workspace name, language, and region." },
+  { id: "general", label: "General", icon: "settings", description: "Workspace name, language, theme, and account." },
   { id: "notifications", label: "Notifications", icon: "bell", description: "What reaches your inbox and when." },
-  { id: "appearance", label: "Appearance", icon: "palette", description: "Theme and density for this device." },
+  { id: "appearance", label: "Appearance", icon: "palette", description: "Density for this device." },
   { id: "security", label: "Security", icon: "shield", description: "Sign-in protection and active sessions." },
   { id: "members", label: "Members", icon: "users", description: "Who can access this workspace." },
 ];
@@ -141,7 +143,7 @@ export function SettingsDialog({
                   Settings
                 </h2>
                 <Select value={section} onValueChange={setSection}>
-                  <SelectTrigger placeholder="Section" />
+                  <SelectTrigger aria-label="Section" placeholder="Section" />
                   <SelectContent>
                     {SECTIONS.map((s, i) => (
                       <SelectItem key={s.id} index={i} value={s.id} icon={icons[s.icon]}>
@@ -228,6 +230,8 @@ function SectionPanel({ id }: { id: string }) {
 }
 
 function GeneralPanel() {
+  const icons = useIcons();
+  const { theme = "system", setTheme } = useTheme();
   const [name, setName] = useState("Acme Inc");
   const [language, setLanguage] = useState("en");
   const [timezone, setTimezone] = useState("utc+1");
@@ -245,7 +249,7 @@ function GeneralPanel() {
       <div className="flex flex-col">
         <SettingRow label="Language" description="Used for the interface and emails.">
           <Select value={language} onValueChange={setLanguage}>
-            <SelectTrigger placeholder="Language" />
+            <SelectTrigger aria-label="Language" placeholder="Language" />
             <SelectContent>
               <SelectItem index={0} value="en">English</SelectItem>
               <SelectItem index={1} value="fr">Français</SelectItem>
@@ -256,7 +260,7 @@ function GeneralPanel() {
         </SettingRow>
         <SettingRow label="Timezone" description="Dates and reminders follow it.">
           <Select value={timezone} onValueChange={setTimezone}>
-            <SelectTrigger placeholder="Timezone" />
+            <SelectTrigger aria-label="Timezone" placeholder="Timezone" />
             <SelectContent>
               <SelectItem index={0} value="utc-8">(UTC−8) Pacific</SelectItem>
               <SelectItem index={1} value="utc-5">(UTC−5) Eastern</SelectItem>
@@ -265,6 +269,21 @@ function GeneralPanel() {
               <SelectItem index={4} value="utc+9">(UTC+9) Tokyo</SelectItem>
             </SelectContent>
           </Select>
+        </SettingRow>
+        <SettingRow label="Theme" description="Follows the system unless you pick one.">
+          <Select value={theme} onValueChange={setTheme}>
+            <SelectTrigger aria-label="Theme" placeholder="Theme" />
+            <SelectContent>
+              <SelectItem index={0} value="system" icon={icons.monitor}>System</SelectItem>
+              <SelectItem index={1} value="light" icon={icons.sun}>Light</SelectItem>
+              <SelectItem index={2} value="dark" icon={icons.moon}>Dark</SelectItem>
+            </SelectContent>
+          </Select>
+        </SettingRow>
+        <SettingRow label="退出登录" description="结束当前会话并返回登录页面。">
+          <div className="flex items-center gap-2">
+            <LogoutButton />
+          </div>
         </SettingRow>
       </div>
     </>
@@ -291,24 +310,12 @@ function NotificationsPanel() {
 }
 
 function AppearancePanel() {
-  const icons = useIcons();
-  const [theme, setTheme] = useState("system");
   const [density, setDensity] = useState("default");
   return (
     <div className="flex flex-col">
-      <SettingRow label="Theme" description="Follows the system unless you pick one.">
-        <Select value={theme} onValueChange={setTheme}>
-          <SelectTrigger placeholder="Theme" />
-          <SelectContent>
-            <SelectItem index={0} value="system" icon={icons.monitor}>System</SelectItem>
-            <SelectItem index={1} value="light" icon={icons.sun}>Light</SelectItem>
-            <SelectItem index={2} value="dark" icon={icons.moon}>Dark</SelectItem>
-          </SelectContent>
-        </Select>
-      </SettingRow>
       <SettingRow label="Density" description="Row height across lists and tables.">
         <Select value={density} onValueChange={setDensity}>
-          <SelectTrigger placeholder="Density" />
+          <SelectTrigger aria-label="Density" placeholder="Density" />
           <SelectContent>
             <SelectItem index={0} value="default">Default</SelectItem>
             <SelectItem index={1} value="compact">Compact</SelectItem>

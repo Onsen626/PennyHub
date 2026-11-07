@@ -37,7 +37,8 @@ import {
 import { SidebarInsetTopbar } from "@/components/sidebar-app/inset-topbar"
 import { ModelSettings } from "@/components/platform/model-settings"
 import { PentestsPanel } from "@/components/platform/pentests-panel"
-import { LogoutButton } from "@/components/platform/logout-button"
+import { SettingsDialog } from "@/components/dialog-sidebar/settings-dialog"
+import { useIcons } from "@/lib/icon-context"
 import {
   SecOpsChatbot,
   type PendingChatSubmission,
@@ -128,6 +129,8 @@ export default function FlocksPage({
     useState<PendingChatSubmission | null>(null)
   const [commandOpen, setCommandOpen] = useState(false)
   const [commandQuery, setCommandQuery] = useState("")
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const SettingsIcon = useIcons().settings
 
   const [agentCategory, setAgentCategory] = useState<string>("all")
   const [toolCategory, setToolCategory] = useState<string>("all")
@@ -254,7 +257,14 @@ export default function FlocksPage({
                 {t.common.copilotToggle}
               </Button>
             ) : null}
-            <LogoutButton />
+            <Button
+              size="sm"
+              variant="ghost"
+              leadingIcon={SettingsIcon}
+              onClick={() => setSettingsOpen(true)}
+            >
+              {t.common.settings}
+            </Button>
           </div>
         </SidebarInsetTopbar>
 
@@ -1113,6 +1123,8 @@ export default function FlocksPage({
           </div>
         </DialogContent>
       </Dialog>
+
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </SidebarProvider>
   )
 }
