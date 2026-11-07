@@ -127,16 +127,15 @@ class Worker:
         build_targets_info(args)
         local_sources = collect_local_sources(args.targets_info)
         instructions = "\n\n".join(f"{key}: {value}" for key, value in self.task["context"].items() if value)
-        if self.task["kind"] == "code_review":
-            instructions += "\nReview the provided source copy only. Do not target live services, push commits or deploy changes."
+        instructions += "\nReview the running Web/API target. Use any supplied source only as auxiliary context. Do not push commits or deploy changes."
         extra_files = []
         for index, file in enumerate(self.task["referenceFiles"]):
             origin = Path(file)
-            destination = f"reference/{index}-{origin.name}"
+            destination = f"/workspace/reference/{index}-{origin.name}"
             extra_files.append({"workspace_path": destination, "content": origin.read_bytes()})
-            instructions += f"\nReference document: /workspace/{destination}"
+            instructions += f"\nReference document: {destination}"
         if self.payload.get("credentials"):
-            extra_files.append({"workspace_path": "penny-access.json", "content": json.dumps(self.payload["credentials"]).encode()})
+            extra_files.append({"workspace_path": "/workspace/penny-access.json", "content": json.dumps(self.payload["credentials"]).encode()})
             instructions += "\nUser-provided test identities and custom request headers are in /workspace/penny-access.json. Never include their secrets in reports."
         config = {"scan_id": self.task["id"], "run_name": self.task["id"], "targets": args.targets_info, "user_instructions": instructions, "scan_mode": self.task["scanMode"], "non_interactive": True, "local_sources": local_sources, "scope_mode": "full", "diff_scope": {"active": False}}
         report = ReportState(self.task["id"])
