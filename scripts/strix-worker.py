@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-COMMIT = "09536cf1481731c790995bd8060db19a3b75ff48"
+COMMIT = "06015506625a78b981ae0b34be40239fc1b389be"
 LOCK_SHA256 = "e82b68f2d9ff70695843e43ce932b8c4ecb90551e1b0c2fff4b82d45248af36d"
 
 
