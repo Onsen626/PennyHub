@@ -1,0 +1,133 @@
+{
+  "repo": "Onsen626/PennyHub",
+  "parent": 1,
+  "verified": true,
+  "issues": [
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/2",
+      "number": 2,
+      "title": "[PoC 01] 平台登录与模型 API 配置",
+      "ticket": 1,
+      "blocked_by": []
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/3",
+      "number": 3,
+      "title": "[PoC 02] 黑盒 Web App Pentest 创建与真实执行",
+      "ticket": 2,
+      "blocked_by": [
+        2
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/4",
+      "number": 4,
+      "title": "[PoC 03] Target List、API Specification 与 Instruction File 输入",
+      "ticket": 3,
+      "blocked_by": [
+        3
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/5",
+      "number": 5,
+      "title": "[PoC 04] 黑盒目标可达性与真实集成验证",
+      "ticket": 4,
+      "blocked_by": [
+        3
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/6",
+      "number": 6,
+      "title": "[PoC 05] Agent 展示与运行控制",
+      "ticket": 5,
+      "blocked_by": [
+        3
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/7",
+      "number": 7,
+      "title": "[PoC 06] 中断恢复与再次测试",
+      "ticket": 6,
+      "blocked_by": [
+        6
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/8",
+      "number": 8,
+      "title": "[PoC 07] Home 与 Copilot 双形态",
+      "ticket": 7,
+      "blocked_by": [
+        2
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/9",
+      "number": 9,
+      "title": "[PoC 08] 聊天生成并启动黑盒 Web App Pentest",
+      "ticket": 8,
+      "blocked_by": [
+        5,
+        8
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/10",
+      "number": 10,
+      "title": "[PoC 09] 原生 Skills 与 Tools 目录",
+      "ticket": 9,
+      "blocked_by": [
+        3
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/11",
+      "number": 11,
+      "title": "[PoC 10] 可复用 Workflows",
+      "ticket": 10,
+      "blocked_by": [
+        5
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/12",
+      "number": 12,
+      "title": "[PoC 11] Home 真实数据展示",
+      "ticket": 11,
+      "blocked_by": [
+        3,
+        8
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/13",
+      "number": 13,
+      "title": "[PoC 12] 黑盒 Web App Pentest 完整流程验收",
+      "ticket": 12,
+      "blocked_by": [
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        21
+      ]
+    },
+    {
+      "url": "https://github.com/Onsen626/PennyHub/issues/21",
+      "number": 21,
+      "title": "根据开源版本的 Strix 重构渗透测试业务流程",
+      "ticket": 13,
+      "blocked_by": [
+        3
+      ]
+    }
+  ]
+}
