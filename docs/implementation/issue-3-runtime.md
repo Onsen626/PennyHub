@@ -2,7 +2,7 @@
 
 ## 当前范围
 
-本次提交覆盖黑盒 Web App Pentest 的公开任务接口、后台运行服务、事件与结果持久化，以及确定行为执行替身测试。前端创建页面按新黑盒规格重构由 Issue #18 独立处理。
+本次提交覆盖黑盒 Web App Pentest 的公开任务接口、后台运行服务、事件与结果持久化，以及确定行为执行替身测试。前端创建页面按新黑盒规格重构由 Issue #21 独立处理。
 
 ## 已验证能力
 
@@ -34,6 +34,6 @@
 
 ## 已知边界
 
-- Target 类型扩展、Target List、API Specification、Instruction File 和新的五步创建页面由 Issue #18 处理。
+- Target 类型扩展、Target List、API Specification、Instruction File 和新的五步创建页面由 Issue #21 处理。
 - 目标容器可达性和 `192.168.0.180` 集成记录由 Issue #5 处理。
 - Agent 控制、暂停、中止、恢复和再次测试由 Issue #6/#7 处理。
