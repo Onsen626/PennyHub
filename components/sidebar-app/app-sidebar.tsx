@@ -67,24 +67,15 @@ const SECTION_ORDER: FlocksSectionId[] = ["home", "workbench", "smith"];
 export interface AppSidebarProps extends Omit<SidebarProps, "children"> {
   activeModule?: FlocksModuleId;
   onSelectModule?: (id: FlocksModuleId) => void;
-  lang?: string;
-  onLangChange?: (lang: "zh" | "en") => void;
   onOpenCommandPalette?: () => void;
-  onOpenCopilot?: () => void;
 }
 
 export function AppSidebar({
   activeModule: controlledModule,
   onSelectModule,
-  lang: _unusedLang,
-  onLangChange: _unusedOnLangChange,
   onOpenCommandPalette,
-  onOpenCopilot: _unusedOnOpenCopilot,
   ...props
 }: AppSidebarProps) {
-  void _unusedLang;
-  void _unusedOnLangChange;
-  void _unusedOnOpenCopilot;
   const [internalModule, setInternalModule] = useState<FlocksModuleId>("home");
 
   const activeModule = controlledModule ?? internalModule;

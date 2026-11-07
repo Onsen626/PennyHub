@@ -223,12 +223,6 @@ export default function FlocksPage({
         activeModule={activeModule}
         onSelectModule={handleSelectModule}
         onOpenCommandPalette={() => setCommandOpen(true)}
-        onOpenCopilot={
-          activeModule === "home"
-            ? undefined
-            : () =>
-                setCopilotMode((m) => (m === "closed" ? "drawer" : "closed"))
-        }
       />
 
       <SidebarInset className="flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-neutral-50/60 md:h-[calc(100dvh-1rem)] md:max-h-[calc(100dvh-1rem)] dark:bg-background">
