@@ -11,6 +11,7 @@ const eslintConfig = defineConfig([
     ".next/**",
     ".next-platform-test/**",
     ".pennyagent/**",
+    "third_party/strix/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

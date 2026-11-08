@@ -11,6 +11,8 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "setup:local": "node scripts/setup-local.mjs",
+    "setup:strix": "node scripts/setup-strix-runtime.mjs",
+    "check:strix": "node scripts/check-strix-runtime.mjs",
     "test:api": "node --test tests/platform-api.test.mjs",
     "test:ui": "node --test tests/platform-ui.test.mjs",
     "test": "npm run test:api && npm run test:ui && npm run test:pentests",
