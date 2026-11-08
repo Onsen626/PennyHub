@@ -5,6 +5,7 @@
 
 ```sh
 npm run setup:local
+npm run setup:strix
 npm run dev
 ```
 
@@ -20,6 +21,7 @@ npm run typecheck
 npm run lint
 npm run build
 npm start
+npm run check:strix
 ```
 
 测试使用独立临时数据目录和 `.next-platform-test` 构建目录，不接触实际账户。浏览器测试优先使用本机 Google Chrome；其他机器可设置 `PENNY_CHROME_PATH`，或运行 `npx playwright install chromium`。API与浏览器测试顺序执行，不要同时启动两组测试。

@@ -43,4 +43,5 @@ next-env.d.ts
 
 # local platform credentials and state
 /.pennyagent/
+/third_party/strix/.venv/
 /.next-platform-test/
