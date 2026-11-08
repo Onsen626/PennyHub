@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-COMMIT = "09536cf1481731c790995bd8060db19a3b75ff48"
+COMMIT = "06015506625a78b981ae0b34be40239fc1b389be"
 LOCK_SHA256 = "e82b68f2d9ff70695843e43ce932b8c4ecb90551e1b0c2fff4b82d45248af36d"
 
 
@@ -27,10 +27,29 @@ def now() -> str:
 
 
 def check_runtime(source: Path) -> dict[str, Any]:
-    commit = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
-    if commit != COMMIT or hashlib.sha256((source / "uv.lock").read_bytes()).hexdigest() != LOCK_SHA256:
+    try:
+        commit = subprocess.check_output(
+            ["git", "-C", str(source), "rev-parse", "HEAD"],
+            text=True,
+            stderr=subprocess.PIPE,
+        ).strip()
+    except (FileNotFoundError, subprocess.CalledProcessError) as error:
+        raise RuntimeError(
+            f"Strix source directory is not a Git checkout: {source}"
+        ) from None
+    lockfile = source / "uv.lock"
+    if not lockfile.is_file():
+        raise RuntimeError(f"Strix dependency lock is missing: {lockfile}")
+    if commit != COMMIT or hashlib.sha256(lockfile.read_bytes()).hexdigest() != LOCK_SHA256:
         raise RuntimeError("Strix source revision or dependency lock differs from the pinned version")
-    subprocess.run(["git", "-C", str(source), "diff", "--quiet", "HEAD", "--", "strix", "pyproject.toml", "uv.lock"], check=True)
+    try:
+        subprocess.run(
+            ["git", "-C", str(source), "diff", "--quiet", "HEAD", "--", "strix", "pyproject.toml", "uv.lock"],
+            check=True,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError("Strix source or dependency files have local changes") from None
     canonical = lambda name: re.sub(r"[-_.]+", "-", name.lower())
     locked: dict[str, set[str]] = {}
     for package in tomllib.loads((source / "uv.lock").read_text())["package"]:
@@ -121,14 +140,10 @@ class Worker:
         from strix.report.state import ReportState, set_global_report_state
 
         targets = list(self.task["targets"])
-        if self.task.get("sourceDirectory"):
-            targets.append(str(self.directory / "source"))
         args = argparse.Namespace(target=targets, target_list=[])
         build_targets_info(args)
         local_sources = collect_local_sources(args.targets_info)
         instructions = "\n\n".join(f"{key}: {value}" for key, value in self.task["context"].items() if value)
-        if self.task["kind"] == "code_review":
-            instructions += "\nReview the provided source copy only. Do not target live services, push commits or deploy changes."
         extra_files = []
         for index, file in enumerate(self.task["referenceFiles"]):
             origin = Path(file)
