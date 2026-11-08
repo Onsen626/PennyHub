@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import tomllib
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -91,9 +92,14 @@ class Worker:
             self.state["source"] = payload["source"]
         self.secrets = [os.environ.get("LLM_API_KEY", "")]
         credentials = payload.get("credentials") or {}
+        self.credentials = credentials
         for identity in credentials.get("identities", []):
             self.secrets.extend(str(identity.get(key, "")) for key in ("username", "password", "cookie", "loginInstructions"))
         self.secrets.extend(str(header.get("value", "")) for header in credentials.get("headers", []))
+        self.secrets.extend(
+            str(credentials.get(key, ""))
+            for key in ("customInstructions", "postmanApiKey")
+        )
         self.secrets = sorted({value for value in self.secrets if value}, key=len, reverse=True)
 
     def scrub(self, value: Any) -> Any:
@@ -141,14 +147,43 @@ class Worker:
         from strix.core.agents import AgentCoordinator
         from strix.core.runner import run_strix_scan
         from strix.interface.scan_setup import build_targets_info
-        from strix.interface.utils import collect_local_sources
+        from strix.interface.utils import collect_local_sources, stage_api_specs
         from strix.report.state import ReportState, set_global_report_state
 
-        targets = list(self.task["targets"])
+        input_directory = self.directory / "work" / "inputs"
+        input_directory.mkdir(parents=True, exist_ok=True)
+
+        def copy_input(source: str, label: str) -> Path:
+            origin = Path(source)
+            if not origin.is_file():
+                raise RuntimeError(f"{label} is missing")
+            destination = input_directory / f"{len(list(input_directory.iterdir()))}-{origin.name}"
+            shutil.copyfile(origin, destination)
+            return destination
+
+        if self.task.get("targetListFile"):
+            # The server already normalized and validated this file into task.targets.
+            # Copy the original into the run inputs for provenance without feeding it
+            # to Strix a second time.
+            copy_input(self.task["targetListFile"]["path"], "target list file")
+        targets = list(self.task["targets"]) + list(self.task.get("apiSpecTargets") or [])
+        for spec in self.task.get("apiSpecPaths") or []:
+            targets.append(str(copy_input(spec["path"], "API specification")))
         args = argparse.Namespace(target=targets, target_list=[])
+        if self.credentials.get("postmanApiKey"):
+            os.environ["POSTMAN_API_KEY"] = str(self.credentials["postmanApiKey"])
         build_targets_info(args)
         local_sources = collect_local_sources(args.targets_info)
+        local_sources.extend(stage_api_specs(args.targets_info, self.task["id"]))
         instructions = "\n\n".join(f"{key}: {value}" for key, value in self.task["context"].items() if value)
+        if self.credentials.get("customInstructions"):
+            instructions = "\n\n".join(filter(None, [instructions, str(self.credentials["customInstructions"])]))
+        if self.credentials.get("instructionFilePath"):
+            instruction_path = copy_input(self.credentials["instructionFilePath"], "instruction file")
+            instruction_text = instruction_path.read_text(encoding="utf-8").strip()
+            if not instruction_text:
+                raise RuntimeError("instruction file is empty")
+            instructions = "\n\n".join(filter(None, [instructions, instruction_text]))
         extra_files = []
         for index, file in enumerate(self.task["referenceFiles"]):
             origin = Path(file)
