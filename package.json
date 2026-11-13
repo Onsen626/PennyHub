@@ -15,8 +15,11 @@
     "check:strix": "node scripts/check-strix-runtime.mjs",
     "test:api": "node --test tests/platform-api.test.mjs",
     "test:ui": "node --test tests/platform-ui.test.mjs",
-    "test": "npm run test:api && npm run test:ui && npm run test:pentests",
-    "test:pentests": "node --test --test-concurrency=1 tests/pentests.test.mjs tests/pentest-runtime.test.mjs tests/pentest-ui.test.mjs tests/strix-worker-runtime.test.mjs"
+    "test": "npm run test:unit && npm run test:findings && npm run test:api && npm run test:ui && npm run test:chat && npm run test:pentests",
+    "test:pentests": "node --test --test-concurrency=1 tests/pentests.test.mjs tests/pentest-runtime.test.mjs tests/pentest-stop.test.mjs tests/pentest-stop-ui.test.mjs tests/pentest-ui.test.mjs tests/strix-worker-stop.test.mjs tests/strix-worker-runtime.test.mjs",
+    "test:chat": "node --test tests/chat-copilot.test.mjs",
+    "test:findings": "node --test tests/findings-query.test.mjs",
+    "test:unit": "node --test tests/pentest-inputs.unit.test.mjs tests/strix-runtime.unit.test.mjs tests/pentest-process.unit.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

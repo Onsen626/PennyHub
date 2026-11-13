@@ -7,6 +7,7 @@
 - 固定依赖锁文件及哈希：`e82b68f2d9ff70695843e43ce932b8c4ecb90551e1b0c2fff4b82d45248af36d`。
 - 保留 Apache-2.0 许可证和上游项目说明。
 - 移除终端界面源码、终端入口和前端开发源码，保留扫描执行所需的 Python 模块、技能和报告资源。
+- 终端入口移除后，`strix/interface/__init__.py` 不再导入 `main`，否则执行器导入 `strix.interface.*` 会触发 `ModuleNotFoundError`。
 - 默认从 `third_party/strix` 读取执行来源。
 - 仍支持 `PENNY_STRIX_SOURCE` 与 `PENNY_STRIX_PYTHON` 作为本地开发覆盖项。
 - 外部 Git 来源使用提交和工作区检查；仓库内置来源使用 `STRIX_COMMIT` 标记检查。
@@ -18,7 +19,7 @@ npm run setup:strix
 npm run check:strix
 ```
 
-安装命令使用 `uv sync --frozen`，并设置 `UV_LINK_MODE=copy`，避免跨磁盘硬链接失败。运行检查会确认提交、锁文件、已安装依赖版本、Python 依赖指纹和 Docker 镜像。
+安装命令使用 `uv sync --frozen`，并设置 `UV_LINK_MODE=copy`，避免跨磁盘硬链接失败。运行检查会确认提交、锁文件、已安装依赖版本、Python 依赖指纹、执行器导入路径和 Docker 镜像。
 
 ## PennyAgent 与 Strix 边界
 

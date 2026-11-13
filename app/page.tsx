@@ -10,7 +10,13 @@ export default async function Page({
   const query = await searchParams
   return (
     <FlocksPage
-      initialModule={query.view === "pentests" ? "tasks" : "home"}
+      initialModule={
+        query.view === "pentests"
+          ? "tasks"
+          : query.view === "risks"
+            ? "workspace"
+            : "home"
+      }
       initialTaskId={typeof query.task === "string" ? query.task : undefined}
     />
   )

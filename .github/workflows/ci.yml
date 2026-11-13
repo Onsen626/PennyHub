@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   platform:
-    name: Lint, types, API, browser and build
+    name: Lint, types, unit, API, browser and build
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -47,11 +47,17 @@ jobs:
         run: npm run lint 2>&1 | tee "$CI_LOG_DIR/lint.log"
       - name: Typecheck
         run: npm run typecheck 2>&1 | tee "$CI_LOG_DIR/typecheck.log"
+      - name: Core function unit tests
+        run: npm run test:unit 2>&1 | tee "$CI_LOG_DIR/unit.log"
+      - name: Findings query tests
+        run: npm run test:findings 2>&1 | tee "$CI_LOG_DIR/findings.log"
       # API and browser tests share a Next.js build directory; execute sequentially.
       - name: API tests
         run: npm run test:api 2>&1 | tee "$CI_LOG_DIR/api.log"
       - name: Browser tests
         run: npm run test:ui 2>&1 | tee "$CI_LOG_DIR/browser.log"
+      - name: Chat API and browser tests
+        run: npm run test:chat 2>&1 | tee "$CI_LOG_DIR/chat.log"
       - name: Pentest behavior tests
         run: npm run test:pentests 2>&1 | tee "$CI_LOG_DIR/pentests.log"
       - name: Production build

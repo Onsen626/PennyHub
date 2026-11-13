@@ -52,10 +52,10 @@ import {
   FLOCKS_WORKFLOWS,
   FLOCKS_SKILLS,
   FLOCKS_TOOLS,
-  FLOCKS_WORKSPACE_ITEMS,
   type FlocksModuleId,
   type FlocksTool,
 } from "@/lib/flocks-data"
+import { FindingsPanel } from "@/components/platform/findings-panel"
 import { cn } from "@/lib/utils"
 
 const ACCENT_ICON_STYLES: Record<string, string> = {
@@ -114,6 +114,7 @@ export default function FlocksPage({
   useEffect(() => {
     const url = new URL(window.location.href)
     if (activeModule === "tasks") url.searchParams.set("view", "pentests")
+    else if (activeModule === "workspace") url.searchParams.set("view", "risks")
     else {
       url.searchParams.delete("view")
       url.searchParams.delete("task")
@@ -285,6 +286,7 @@ export default function FlocksPage({
               {/* 1.5 AI 安全工作台 - Dashboard */}
               {activeModule === "dashboard" && (
                 <>
+                  <FindingsPanel summaryOnly />
                   <Banner status="info" contrast="low" dismissible>
                     <BannerTitle>
                       红队授权门禁待确认：支付网关 v3 (SES-101)
@@ -890,34 +892,7 @@ export default function FlocksPage({
 
               {/* 8. 证据工作区视图 */}
               {activeModule === "workspace" && (
-                <div className="space-y-4">
-                  <h1
-                    className={cn(typeClass("title"), "text-foreground")}
-                    style={{ fontVariationSettings: fontWeights.semibold }}
-                  >
-                    {t.nav.workspace} ({FLOCKS_WORKSPACE_ITEMS.length})
-                  </h1>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {FLOCKS_WORKSPACE_ITEMS.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between rounded-xl border border-border/75 bg-card p-4"
-                      >
-                        <div>
-                          <p className="font-mono text-sm font-semibold text-foreground">
-                            {item.name}
-                          </p>
-                          <p className="mt-1 font-mono text-xs text-muted-foreground">
-                            {item.size} · {item.updatedAt} · {item.hash}
-                          </p>
-                        </div>
-                        <Badge size="sm" variant="dot" color="purple">
-                          {item.kind}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <FindingsPanel taskId={initialTaskId} />
               )}
 
               {/* 单一模型接口配置 */}

@@ -316,12 +316,20 @@ test("browser verifies Home composer, fullscreen/drawer switching, state retenti
     ).toBeVisible()
     await expect(page.getByText("近 7 日任务", { exact: true })).toBeVisible()
 
-    // 2. Verify "现有风险" keeps existing content unchanged
+    // 2. Verify "现有风险" renders real Findings panel
     await sidebar.getByRole("button", { name: "现有风险", exact: true }).click()
     await expect(
-      page.getByRole("heading", { name: "现有风险 (5)", exact: true })
+      page.getByRole("heading", { name: "现有风险", exact: true })
     ).toBeVisible()
-    await expect(page.getByText("scope-pay-staging-2026Q4.yaml")).toBeVisible()
+    await expect(
+      page.getByText("按任务内发现记录统计，跨任务未合并。来源：Strix。")
+    ).toBeVisible()
+    await expect(
+      page.getByText("发现记录：0 · 结果缺失任务：0 · 读取异常任务：0", { exact: true })
+    ).toBeVisible()
+    await expect(
+      page.getByText("当前范围没有发现记录。", { exact: true })
+    ).toBeVisible()
 
     // 3. Verify "协同通道" shows empty state
     await sidebar.getByRole("button", { name: "协同通道", exact: true }).click()
@@ -483,15 +491,19 @@ test("browser verifies Home composer, fullscreen/drawer switching, state retenti
     await page.reload({ waitUntil: "domcontentloaded" })
     await expect(homeInput).toBeVisible()
     await expect(async () => {
-      if (!(await chatbot.isVisible())) {
+      if (await chatbot.isHidden()) {
         await sidebar
           .getByRole("button", { name: "Dashboard", exact: true })
-          .click({ timeout: 1500 })
-        await topbar
-          .getByRole("button", { name: "AI Copilot", exact: true })
-          .click({ timeout: 1500 })
+          .click()
+        const copilotBtn = topbar.getByRole("button", {
+          name: "AI Copilot",
+          exact: true,
+        })
+        if (await copilotBtn.isVisible()) {
+          await copilotBtn.click()
+        }
       }
-      await expect(chatbot).toBeVisible({ timeout: 1500 })
+      await expect(chatbot).toBeVisible()
     }).toPass({ timeout: 25000 })
     await expect(
       chatbot.getByText("从首页发起安全架构咨询，请给出演示建议")
