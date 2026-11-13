@@ -53,7 +53,11 @@ class ReportState:
         (DIRECTORY / "report-cleaned").write_text(status, encoding="utf-8")
 
 
-async def run_strix_scan(**_kwargs: object) -> None:
+CAPTURED: dict[str, object] = {}
+
+
+async def run_strix_scan(**kwargs: object) -> None:
+    CAPTURED.update(kwargs)
     try:
         await asyncio.sleep(60)
     finally:
@@ -101,7 +105,6 @@ payload = {
     "sourcePath": str(DIRECTORY),
     "slot": str(DIRECTORY / "slot.json"),
     "maxTurns": 5,
-    "maxBudgetUsd": 0.1,
     "task": {
         "id": "00000000-0000-4000-8000-000000000000",
         "targets": ["http://127.0.0.1:9"],
@@ -131,4 +134,7 @@ if runtime.get("status") != "stopped":
 if runtime.get("phase") != "stopped_by_user":
     print(f"unexpected phase: {runtime.get('phase')}", file=sys.stderr)
     raise SystemExit(5)
+if "max_budget_usd" in CAPTURED or "budget_policy" in CAPTURED:
+    print(f"budget arguments still forwarded: {sorted(CAPTURED)}", file=sys.stderr)
+    raise SystemExit(6)
 print("worker stopped cleanly")

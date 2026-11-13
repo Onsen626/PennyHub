@@ -222,7 +222,7 @@ class Worker:
         projection = asyncio.create_task(project_results())
         cleaned = False
         try:
-            await run_strix_scan(scan_config=config, scan_id=self.task["id"], image=metadata["image"], local_sources=local_sources, extra_files=extra_files, coordinator=coordinator, interactive=False, max_turns=self.payload["maxTurns"], max_budget_usd=self.payload["maxBudgetUsd"], budget_policy="stop", status_sink=self.status, event_sink=lambda agent_id, event: self.event("agent_event", event, agent_id))
+            await run_strix_scan(scan_config=config, scan_id=self.task["id"], image=metadata["image"], local_sources=local_sources, extra_files=extra_files, coordinator=coordinator, interactive=False, max_turns=self.payload["maxTurns"], status_sink=self.status, event_sink=lambda agent_id, event: self.event("agent_event", event, agent_id))
             # The native finish_scan tool determines completion, not process exit 0.
             completed = report.run_record.get("status") == "completed"
             report.cleanup(status="stopped")

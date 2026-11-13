@@ -4,7 +4,7 @@ CI 使用 Node.js 24，依次执行测试，避免多个 Next.js 测试服务器
 
 | 命令 | 验证内容 |
 | --- | --- |
-| `npm run test:unit` | 核心输入函数：目标列表过滤、URL 规范化和去重、Postman 地址校验、文件路径解析、UTF-8 大小限制、OpenAPI/Swagger/Postman 摘要和无效文件处理；Strix 运行时选择与失效记录回退；结束进程组的 SIGTERM→SIGKILL 升级与平台自身 pid 排除 |
+| `npm run test:unit` | 核心输入函数：目标列表过滤、URL 规范化和去重、Postman 地址校验、文件路径解析、UTF-8 大小限制、OpenAPI/Swagger/Postman 摘要和无效文件处理；Strix 运行时选择与失效记录回退；结束进程组的 SIGTERM→SIGKILL 升级与平台自身 pid 排除；轮次耗时估算 |
 | `npm run test:findings` | Findings 汇总、任务间身份区分、重复结果、缺失或损坏记录、未知严重等级、过滤和完整性标记 |
 | `npm run test:api` | 认证、模型配置、持久化、连接错误和超时 |
 | `npm run test:ui` | 平台浏览器流程 |
@@ -25,3 +25,4 @@ CI 使用 Node.js 24，依次执行测试，避免多个 Next.js 测试服务器
 - 结束测试进程控制（`tests/pentest-process.unit.test.mjs`）：验证已在运行的进程先 SIGTERM、超时升级 SIGKILL、SIGKILL 后仍存活时返回终止失败，以及平台自身 pid 永远不会被当作 worker。
 - Strix 清理（`tests/strix-worker-stop.test.mjs`）：用替身 Strix 模块驱动真实 worker，验证 SIGTERM 触发 runner 的沙箱清理、worker 的 report cleanup，并最终发布 `stopped`。
 - Strix 运行时选择（`tests/strix-runtime.unit.test.mjs`）：确认保存的运行时记录在源码目录或解释器失效时整条回退到内置 Strix，不再单独信任其中的 Python 路径。
+- 轮次耗时估算（`tests/pentest-estimate.unit.test.mjs`）：按 DeepSeek v4.1 约 60 tokens/s、每轮约 600 输出 tokens 与 2–6 秒工具开销，验证预设 50/100/200/500 轮显示 10–15 分钟 / 20–30 分钟 / 45 分钟 / 1 小时以上，自定义轮次沿用计算结果；浏览器测试同时确认轮次步骤只保留回合上限并展示估算。
