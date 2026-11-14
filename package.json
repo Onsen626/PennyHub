@@ -19,7 +19,7 @@
     "test:pentests": "node --test --test-concurrency=1 tests/pentests.test.mjs tests/pentest-runtime.test.mjs tests/pentest-stop.test.mjs tests/pentest-stop-ui.test.mjs tests/pentest-ui.test.mjs tests/strix-worker-stop.test.mjs tests/strix-worker-runtime.test.mjs",
     "test:chat": "node --test tests/chat-copilot.test.mjs",
     "test:findings": "node --test tests/findings-query.test.mjs",
-    "test:unit": "node --test tests/pentest-inputs.unit.test.mjs tests/strix-runtime.unit.test.mjs tests/pentest-process.unit.test.mjs tests/pentest-estimate.unit.test.mjs tests/strix-sandbox.unit.test.mjs",
+    "test:unit": "node --test tests/pentest-inputs.unit.test.mjs tests/strix-runtime.unit.test.mjs tests/pentest-process.unit.test.mjs tests/pentest-estimate.unit.test.mjs tests/strix-sandbox.unit.test.mjs tests/controlled-spawn.unit.test.mjs",
     "test:catalog": "node --test --test-concurrency=1 tests/native-catalog.test.mjs tests/native-catalog-ui.test.mjs"
   },
   "dependencies": {
