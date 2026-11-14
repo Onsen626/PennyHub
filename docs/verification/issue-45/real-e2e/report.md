@@ -21,3 +21,7 @@
 ## 证据
 
 verification.json、final-api.json、downloads.json、reloaded-page.txt、两次 execution-events 文件及截图。未保存登录凭据或模型密钥。
+
+## 后续修复
+
+事件转换问题已在提交 b9ef96c 修复。最终真实复测 59448dd0-82b3-4ced-8dd6-1dbcf0fd0338 自然完成，19 条 RunItem 事件与 1 条 Agent 更新事件保存成功，日志没有线程锁序列化异常。详见 ../event-fix/。

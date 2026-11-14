@@ -1,0 +1,47 @@
+{
+  "sourceCommit": "b9ef96c",
+  "checks": [
+    {
+      "command": "node --test tests/strix-worker-stop.test.mjs (before fix)",
+      "exitStatus": 1,
+      "log": "red.log"
+    },
+    {
+      "command": "node --test tests/strix-worker-stop.test.mjs",
+      "exitStatus": 0,
+      "log": "green.log"
+    },
+    {
+      "command": "NODE_ENV=development npm test",
+      "exitStatus": 0,
+      "log": "full.log"
+    },
+    {
+      "command": "npm run typecheck",
+      "exitStatus": 0,
+      "log": "types.log"
+    },
+    {
+      "command": "npm run lint",
+      "exitStatus": 0,
+      "log": "lint.log"
+    },
+    {
+      "command": "npm run build",
+      "exitStatus": 0,
+      "log": "build.log"
+    }
+  ],
+  "suiteCounts": [
+    45,
+    2,
+    8,
+    1,
+    3,
+    15,
+    7
+  ],
+  "totalTests": 81,
+  "standardsFindings": 0,
+  "remainingSpecFindings": 0
+}

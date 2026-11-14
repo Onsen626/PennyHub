@@ -1561,10 +1561,10 @@ index 2eac952..d977740 100644
    },
    "dependencies": {
 diff --git a/scripts/strix-worker.py b/scripts/strix-worker.py
-index 966e284..4aacaa2 100644
+index 966e284..1c1fb81 100644
 --- a/scripts/strix-worker.py
 +++ b/scripts/strix-worker.py
-@@ -132,7 +132,9 @@ class Worker:
+@@ -132,15 +132,23 @@ class Worker:
              self.state["error"] = self.scrub(error)
          if self.state["status"] in {"completed", "failed", "interrupted", "stopped"}:
              self.state["endedAt"] = now()
@@ -1575,7 +1575,14 @@ index 966e284..4aacaa2 100644
          self.event("status", {"phase": phase, "status": self.state["status"]})
  
      def event(self, kind: str, data: Any, agent_id: str | None = None) -> None:
-@@ -140,7 +142,7 @@ class Worker:
+-        if dataclasses.is_dataclass(data) and not isinstance(data, type):
++        # SDK RunItem references the live Agent, whose tools contain thread locks.
++        # Persist the SDK's public input item instead of deep-copying that runtime.
++        if getattr(data, "type", None) == "run_item_stream_event":
++            data = {"type": data.type, "name": data.name, "item": {"raw_item": data.item.to_input_item()}}
++        elif getattr(data, "type", None) == "agent_updated_stream_event":
++            data = {"type": data.type, "new_agent": {"name": data.new_agent.name}}
++        elif dataclasses.is_dataclass(data) and not isinstance(data, type):
              data = dataclasses.asdict(data)
          elif hasattr(data, "model_dump"):
              data = data.model_dump(mode="json")
@@ -1584,7 +1591,7 @@ index 966e284..4aacaa2 100644
          with (self.directory / "events.jsonl").open("a", encoding="utf-8") as stream:
              stream.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
  
-@@ -244,12 +246,6 @@ class Worker:
+@@ -244,12 +252,6 @@ class Worker:
              if self.state["status"] != "completed":
                  await snapshot()
  
@@ -1597,7 +1604,7 @@ index 966e284..4aacaa2 100644
  
  
  class RedactedLog:
-@@ -300,8 +296,6 @@ def main() -> int:
+@@ -300,8 +302,6 @@ def main() -> int:
      except BaseException as error:
          worker.status("native_runner_failed", "failed", f"{type(error).__name__}: {error}")
          return 1
@@ -1863,22 +1870,82 @@ index cf196a3..bc14a5d 100644
      PENNY_NEXT_DIST_DIR: distDir,
      NEXT_TELEMETRY_DISABLED: "1",
 diff --git a/tests/helpers/strix-worker-stop-harness.py b/tests/helpers/strix-worker-stop-harness.py
-index ab89fde..47be36f 100644
+index ab89fde..2feccdf 100644
 --- a/tests/helpers/strix-worker-stop-harness.py
 +++ b/tests/helpers/strix-worker-stop-harness.py
-@@ -101,6 +101,7 @@ spec.loader.exec_module(worker_module)
+@@ -8,6 +8,7 @@ cleanup both ran before the worker published `stopped`.
+ from __future__ import annotations
+ 
+ import asyncio
++from dataclasses import dataclass
+ import importlib.util
+ import io
+ import json
+@@ -37,6 +38,8 @@ class AgentCoordinator:
+ 
+ class ReportState:
+     def __init__(self, scan_id: str) -> None:
++        global REPORT
++        REPORT = self
+         self.scan_id = scan_id
+         self.vulnerability_reports: list[object] = []
+         self.final_scan_result = None
+@@ -58,6 +61,29 @@ CAPTURED: dict[str, object] = {}
+ 
+ async def run_strix_scan(**kwargs: object) -> None:
+     CAPTURED.update(kwargs)
++    if len(sys.argv) > 2 and sys.argv[2] == "events":
++        @dataclass
++        class Agent:
++            name: str
++            lock: object
++
++        @dataclass
++        class Item:
++            agent: object
++            def to_input_item(self):
++                return {"type": "function_call", "name": "terminal", "arguments": "fixture-secret"}
++
++        @dataclass
++        class Event:
++            name: str
++            item: object
++            type: str = "run_item_stream_event"
++
++        kwargs["event_sink"]("root-agent", Event("tool_called", Item(Agent("Root", threading.Lock()))))
++        kwargs["event_sink"]("root-agent", {"type": "plain", "text": "fixture-secret"})
++        REPORT.run_record["status"] = "completed"
++        REPORT.final_scan_result = "Fixture completed"
++        return
+     try:
+         await asyncio.sleep(60)
+     finally:
+@@ -101,6 +127,8 @@ spec.loader.exec_module(worker_module)
  worker_module.check_runtime = lambda source: {"image": "fake-image"}
  
  payload = {
++    "credentials": {"customInstructions": "fixture-secret"},
 +    "executionId": "worker-stop-fixture",
      "directory": str(DIRECTORY),
      "sourcePath": str(DIRECTORY),
      "slot": str(DIRECTORY / "slot.json"),
-@@ -123,7 +124,7 @@ if code != 0:
+@@ -116,14 +144,18 @@ payload = {
+     },
+ }
+ sys.stdin = io.StringIO(json.dumps(payload))
+-threading.Timer(0.6, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
++if len(sys.argv) < 3:
++    threading.Timer(0.6, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
+ 
+ code = worker_module.main()
+ if code != 0:
      print(f"worker exited with {code}", file=sys.stderr)
      raise SystemExit(2)
  
 -runtime = json.loads((DIRECTORY / "runtime.json").read_text(encoding="utf-8"))
++if len(sys.argv) > 2:
++    raise SystemExit(0)
++
 +runtime = json.loads((DIRECTORY / "execution-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
  for name in ("runner-cleaned", "report-cleaned"):
      if not (DIRECTORY / name).exists():
@@ -3098,7 +3165,7 @@ index f9ccd75..01827b2 100644
      await browser?.close()
      await platform.dispose()
 diff --git a/tests/strix-worker-stop.test.mjs b/tests/strix-worker-stop.test.mjs
-index 57a02c4..a9d4ed8 100644
+index 57a02c4..526a8b1 100644
 --- a/tests/strix-worker-stop.test.mjs
 +++ b/tests/strix-worker-stop.test.mjs
 @@ -29,7 +29,10 @@ test("SIGTERM makes the worker run the Strix cleanup path and publish stopped",
@@ -3113,3 +3180,33 @@ index 57a02c4..a9d4ed8 100644
      )
      assert.equal(runtime.status, "stopped")
      assert.equal(runtime.phase, "stopped_by_user")
+@@ -40,3 +43,29 @@ test("SIGTERM makes the worker run the Strix cleanup path and publish stopped",
+     await rm(directory, { recursive: true, force: true })
+   }
+ })
++
++test("worker preserves tool events containing native agent locks and redacts credentials", async () => {
++  const directory = await mkdtemp(path.join(tmpdir(), "penny-worker-events-"))
++  try {
++    const result = spawnSync(
++      python(),
++      ["tests/helpers/strix-worker-stop-harness.py", directory, "events"],
++      { encoding: "utf8", timeout: 30000 }
++    )
++    assert.equal(result.status, 0, result.stderr)
++    const text = await readFile(path.join(directory, "events.jsonl"), "utf8")
++    const events = text.trim().split("\n").map(JSON.parse)
++    const tool = events.find((event) => event.data?.name === "tool_called")
++    assert.equal(tool?.data.item.raw_item.name, "terminal")
++    assert.equal(tool?.data.item.raw_item.arguments, "[REDACTED]")
++    assert.equal(tool?.agentId, "root-agent")
++    assert.equal(tool?.executionId, "worker-stop-fixture")
++    assert.doesNotMatch(text, /fixture-secret|_thread.lock/)
++    const results = JSON.parse(
++      await readFile(path.join(directory, "results.json"), "utf8")
++    )
++    assert.equal(results.final, true)
++  } finally {
++    await rm(directory, { recursive: true, force: true })
++  }
++})

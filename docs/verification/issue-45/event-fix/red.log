@@ -1,0 +1,30 @@
+✔ SIGTERM makes the worker run the Strix cleanup path and publish stopped (717.599375ms)
+✖ worker preserves tool events containing native agent locks and redacts credentials (95.172708ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 859.80175
+
+✖ failing tests:
+
+test at tests/strix-worker-stop.test.mjs:48:1
+✖ worker preserves tool events containing native agent locks and redacts credentials (95.172708ms)
+  AssertionError [ERR_ASSERTION]: worker exited with 1
+  
+  
+  2 !== 0
+  
+      at TestContext.<anonymous> (file:///Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/tests/strix-worker-stop.test.mjs:52:12)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
