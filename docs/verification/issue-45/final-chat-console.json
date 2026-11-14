@@ -1,0 +1,15 @@
+[
+  {
+    "type": "response",
+    "url": "http://127.0.0.1:58904/api/chat/sessions/ses-default/messages",
+    "status": 502
+  },
+  {
+    "type": "console",
+    "message": "Failed to load resource: the server responded with a status of 502 (Bad Gateway)"
+  },
+  {
+    "type": "pageerror",
+    "message": ""
+  }
+]

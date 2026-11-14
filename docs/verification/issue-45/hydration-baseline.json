@@ -1,0 +1,18 @@
+{
+  "events": [
+    {
+      "type": "repeated-clicks",
+      "stages": [
+        "AI Copilot\n设置",
+        "AI Copilot\n设置",
+        "AI Copilot\n设置"
+      ]
+    }
+  ],
+  "state": {
+    "errors": [],
+    "header": "AI Copilot\n设置",
+    "text": "F\nFlocks\n⌘K\n首页\n控制台首页\nAI 安全工作台\nDashboard\nPentests\n现有风险\nAGENT SMITH\nAgents\n17\nWorkflows\n4\nSkills\n75\nTools\n61\nModels\n协同通道\nAI Copilot\n设置\n发现摘要\n\n按任务内发现记录统计，跨任务未合并。来源：Strix。\n\n发现记录：0 · 结果缺失任务：0 · 读取异常任务：0\n\ncritical: 0\nhigh: 0\nmedium: 0\nlow: 0\ninfo: 0\nunknown: 0\n\n查询时间：2026-11-14T07:17:09.223Z\n\n红队授权门禁待确认：支付网关 v3 (SES-101) 发现跨租户越权高危漏洞\n\nWeb-Sentinel 已完成被动差分验证，正等待安全操作员批准只读 JWT kid 混淆探针。\n\n前往审批\nSessions\n\nChat with AI to complete complex security tasks\n\nWorkflows\n\nVisually orchestrate security automation pipelines\n\nAgents\n\nManage and configure AI agents\n\nAgents\n\n17\n\nWorkflows\n\n4\n\nSkills\n\n75\n\nTools\n\n61\n\n近 7 日任务\n\n128\n\n活跃定时巡检\n\n6\n\nModels\n\n6\n\n系统状态\n\n运行正常\n\n所有沙箱与代理节点运行正常",
+    "readyState": "complete"
+  }
+}

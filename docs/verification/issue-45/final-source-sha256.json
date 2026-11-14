@@ -1,0 +1,35 @@
+{
+  "baselineCommit": "2a1ddedf318149caffa53ca29e908443995016a9",
+  "files": [
+    {
+      "path": "lib/pentest-lifecycle.ts",
+      "baselineSHA256": "9baf148f527a44ec528552073f5bb7720cbe408da9c21fe04acb1abe004364fa",
+      "finalSHA256": "8d5576a919bd12810113c7851581603f53c3f71202aae56ef263f66ca524907d"
+    },
+    {
+      "path": "lib/server/pentest-manager.ts",
+      "baselineSHA256": "496f35c13ae73c1b28907fcc9dd75a4349c7d25e70cab1bc58e1a7848207c5df",
+      "finalSHA256": "7450040d6b135230226e7ad4d6f34b8307475ee9f9859a71bc1da09e9959ace9"
+    },
+    {
+      "path": "lib/server/pentest-runtime.ts",
+      "baselineSHA256": "b803f9542eef7edee4f5c489e05d37cd516ed5ce2e77a04d90cc547b2d110aeb",
+      "finalSHA256": "6ea4912ceb3177390354e26c274610b7b16db0124e7adb5d429f7cf5fe8a8918"
+    },
+    {
+      "path": "tests/pentest-stop.test.mjs",
+      "baselineSHA256": "710fe9b8f5f624fb0ba8bf5c169f6bbe301129080ea3c201c7ca8e80a60b2606",
+      "finalSHA256": "dc71188aa7c1576ed95a50e8b126a28b410e7528f4681c98e3b487b39ebb4812"
+    },
+    {
+      "path": "tests/helpers/pentest-unlaunched-executor-fixture.mjs",
+      "baselineSHA256": null,
+      "finalSHA256": "ca0968e63bf65ca920467ea35ab9d21d4836fcde3d78e4ebb23e8658bc9268c3"
+    },
+    {
+      "path": "tests/helpers/platform-server.mjs",
+      "baselineSHA256": "7c6abeaf61d8d4eabb1ab2f4b4ad074a95c09b7d1e3407de564990256f16825c",
+      "finalSHA256": "66a188464854014ef57773c12d5bd78f36c7d575ac5695aa52d779fa3d7cf3a6"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+✖ browser verifies Home composer, fullscreen/drawer switching, state retention, navigation renames, and reload persistence (775.295167ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5654.743625
+
+✖ failing tests:
+
+test at tests/chat-copilot.test.mjs:221:1
+✖ browser verifies Home composer, fullscreen/drawer switching, state retention, navigation renames, and reload persistence (775.295167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  401 !== 200
+  
+      at TestContext.<anonymous> (file:///Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/tests/chat-copilot.test.mjs:272:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 401,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+EXIT_STATUS=1

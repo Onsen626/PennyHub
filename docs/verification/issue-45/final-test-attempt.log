@@ -1,0 +1,132 @@
+
+> next-app@0.0.1 test
+> npm run test:unit && npm run test:findings && npm run test:api && npm run test:ui && npm run test:chat && npm run test:pentests && npm run test:catalog
+
+
+> next-app@0.0.1 test:unit
+> node --test tests/pentest-inputs.unit.test.mjs tests/strix-runtime.unit.test.mjs tests/pentest-process.unit.test.mjs tests/pentest-estimate.unit.test.mjs tests/strix-sandbox.unit.test.mjs tests/controlled-spawn.unit.test.mjs tests/pentest-lifecycle.unit.test.mjs
+
+✔ detached children and raw spawn imports stay inside the wrapper (102.449125ms)
+✔ the worker wrapper detaches into its own group and carries the run label (49.5235ms)
+✔ the non-detached wrapper overrides a rogue detached option (6.089833ms)
+✔ 50 turns estimate from the 60 tokens/s assumption (1.129875ms)
+✔ 100 turns double the 50-turn estimate (0.280959ms)
+✔ 500 turns span roughly 1.7 to 2.2 hours (0.106292ms)
+✔ invalid turn counts have no estimate (0.104042ms)
+✔ durations under an hour read as minutes and longer ones as hours (0.102708ms)
+✔ preset turn counts show the agreed labels (0.070125ms)
+✔ custom turn counts keep the computed range (0.071541ms)
+✔ target lists trim CRLF, blank lines and whole-line comments (0.983208ms)
+✔ targets normalize domains, IPv4, IPv6, paths and duplicate URLs (3.907791ms)
+✔ targets reject unsupported schemes, credentials, fragments and invalid hosts (0.334084ms)
+✔ Postman accepts collection UUID and supported environment parameters (0.254042ms)
+✔ Postman rejects malformed UUID, protocol, credentials and unknown parameters (0.69525ms)
+✔ input paths resolve symlinks and reject relative, missing and directory paths (3.371583ms)
+✔ text input preserves content and enforces UTF-8 byte limits (1.308041ms)
+✔ OpenAPI JSON summarizes servers, operations, parameters, bodies and authentication (0.869959ms)
+✔ Swagger YAML resolves host, base path and schemes (2.377209ms)
+✔ Postman traverses nested folders and resolves collection variables (0.736375ms)
+✔ API specifications reject malformed JSON/YAML, unknown formats and empty operations (1.643959ms)
+✔ confirmed start establishes an execution identity without assigning the platform PID to the worker (0.839291ms)
+✔ only the current execution can publish its worker identity and enter running (0.268375ms)
+✔ stop requests enter stopping idempotently and reject late running events (0.110625ms)
+✔ stopped requires both process group exit and sandbox cleanup confirmation (0.13975ms)
+✔ completion requires a durable final result and failures and interruptions preserve identity (0.105833ms)
+✔ cleanup observations preserve lifecycle status and increment the public revision (0.071ms)
+✔ execution progress updates its revision without changing status or assigning worker identity during preparation (0.07675ms)
+✔ a process that is already gone needs no signal (3.179708ms)
+✔ a worker that exits on SIGTERM is never escalated (0.236667ms)
+✔ a worker ignoring SIGTERM is escalated to SIGKILL (0.1205ms)
+✔ a worker that survives SIGKILL is reported as not terminated (0.143875ms)
+✔ the platform's own pid is never selected as the stop target (0.082584ms)
+✔ group liveness outlives the group leader (196.6595ms)
+✔ a zombie is alive to signals but cannot run, so it must not hold a lock (38.344083ms)
+✔ a live process and a dead pid are not zombies (33.83725ms)
+✔ a saved runtime whose checkout is gone falls back to the bundled one (1.047083ms)
+✔ a usable saved runtime is used as a whole (0.079458ms)
+✔ an explicit source uses that checkout's interpreter (0.08175ms)
+✔ an explicit interpreter wins and keeps a usable source for PYTHONPATH (0.065625ms)
+✔ an explicit interpreter with a stale saved runtime uses the bundled source (0.0645ms)
+✔ removes containers that carry the task's run label (0.879958ms)
+✔ does nothing when no labelled container is left (0.102875ms)
+✔ dockerd being unavailable never fails the stop (0.09325ms)
+✔ a failed rm never fails the stop (0.079ms)
+ℹ tests 45
+ℹ suites 0
+ℹ pass 45
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 885.801333
+
+> next-app@0.0.1 test:findings
+> node --test tests/findings-query.test.mjs
+
+✔ query preserves per-task identities, missing/corrupt counts and unknown severity (45.589333ms)
+✔ same native identity across tasks remains independent and legacy completeness is unknown (7.535084ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 315.122083
+
+> next-app@0.0.1 test:api
+> node --test tests/platform-api.test.mjs
+
+✔ unauthenticated access redirects pages and rejects configuration APIs (2717.11125ms)
+✔ local administrator can login, read session, and logout revokes the cookie (1567.134333ms)
+✔ saved model configuration survives reload and never returns its API key (62.405042ms)
+✔ model connection test uses real HTTP and classifies provider errors without leaking secrets (365.259916ms)
+✔ configuration key preservation, replacement, and clearing have explicit behavior (37.111416ms)
+✔ configuration and authenticated session remain available after server restart (5872.837667ms)
+✔ unauthenticated writes and cross-origin writes cannot change the saved configuration (240.752083ms)
+✔ provider timeout after response headers is reported as a timeout (23112.360166ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 38462.958959
+
+> next-app@0.0.1 test:ui
+> node --test tests/platform-ui.test.mjs
+
+✖ browser login, Models configuration, connection feedback, restart, and logout (14089.720542ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14315.369959
+
+✖ failing tests:
+
+test at tests/platform-ui.test.mjs:9:1
+✖ browser login, Models configuration, connection feedback, restart, and logout (14089.720542ms)
+  Error: expect(locator).toBeVisible() failed
+  
+  Locator: getByRole('alert').filter({ hasText: '用户名或密码错误' })
+  Expected: visible
+  Timeout: 5000ms
+  Error: element(s) not found
+  
+  Call log:
+    - Expect "toBeVisible" getByRole('alert').filter({ hasText: '用户名或密码错误' }) with timeout 5000ms
+    - waiting for getByRole('alert').filter({ hasText: '用户名或密码错误' })
+  
+      at captureRawStack (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/node_modules/playwright-core/lib/coreBundle.js:9551:17)
+      at callMatcherAsStep (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/node_modules/playwright/lib/matchers/expect.js:13342:57)
+      at Object.toBeVisible (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/node_modules/playwright/lib/matchers/expect.js:13334:23)
+      at TestContext.<anonymous> (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/tests/platform-ui.test.mjs:55:7) {
+    matcherResult: { message: `expect(locator).toBeVisible() failed\n\nLocator: getByRole('alert').filter({ hasText: '用户名或密码错误' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect "toBeVisible" getByRole('alert').filter({ hasText: '用户名或密码错误' }) with timeout 5000ms\n  - waiting for getByRole('alert').filter({ hasText: '用户名或密码错误' })\n`, pass: false, actual: undefined, name: 'toBeVisible', expected: 'visible', log: [ `  - Expect "toBeVisible" getByRole('alert').filter({ hasText: '用户名或密码错误' }) with timeout 5000ms`, "  - waiting for getByRole('alert').filter({ hasText: '用户名或密码错误' })" ], timeout: 5000, ariaSnapshot: '- main:\n  - heading "PennyAgent" [level=1]\n  - paragraph: 登录安全测试工作台\n  - text: 用户名\n  - textbox "用户名"\n  - text: 密码\n  - textbox "密码"\n  - button "登录"\n  - paragraph:\n    - text: 首次使用请在本机终端运行\n    - code: npm run setup:local\n    - text: 创建管理员。平台没有默认密码。\n- alert' }
+  }
+
+EXIT_STATUS=1

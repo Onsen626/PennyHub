@@ -1,0 +1,51 @@
+▲ Next.js 16.4.3 (webpack)
+- Local:         http://127.0.0.1:58904
+- Network:       http://127.0.0.1:58904
+✓ Ready in 217ms
+✓ Running next.config.ts took 21ms
+
+ GET /login 200 in 297ms (next.js: 164ms, application-code: 133ms)
+ GET /api/chat/sessions 401 in 96ms (next.js: 76ms, application-code: 20ms)
+ POST /api/chat/sessions/ses-default/messages 401 in 403ms (next.js: 389ms, application-code: 14ms)
+ POST /api/auth/login 200 in 56ms (next.js: 11ms, application-code: 45ms)
+ POST /api/chat/sessions 403 in 9ms (next.js: 2ms, application-code: 7ms)
+ POST /api/chat/sessions/ses-default/messages 422 in 8ms (next.js: 3ms, application-code: 6ms)
+ GET /api/chat/sessions 200 in 5ms (next.js: 0.6ms, application-code: 4ms)
+ PUT /api/model-config 200 in 27ms (next.js: 12ms, application-code: 15ms)
+ POST /api/chat/sessions/ses-default/messages 422 in 20ms (next.js: 3ms, application-code: 17ms)
+ GET /api/chat/sessions/ses-default 200 in 286ms (next.js: 275ms, application-code: 11ms)
+ POST /api/chat/sessions/ses-default/messages 200 in 12ms (next.js: 2ms, application-code: 9ms)
+ POST /api/chat/sessions/ses-default/messages 200 in 7ms (next.js: 0.5ms, application-code: 7ms)
+[?25h
+▲ Next.js 16.4.3 (webpack)
+- Local:         http://127.0.0.1:58904
+- Network:       http://127.0.0.1:58904
+✓ Ready in 278ms
+✓ Running next.config.ts took 24ms
+
+ GET /login 200 in 275ms (next.js: 139ms, application-code: 137ms)
+ GET /api/chat/sessions 200 in 84ms (next.js: 63ms, application-code: 20ms)
+ PUT /api/model-config 200 in 36ms (next.js: 20ms, application-code: 17ms)
+ GET / 307 in 229ms (next.js: 135ms, application-code: 93ms)
+ GET /login 200 in 33ms (next.js: 4ms, application-code: 29ms)
+ POST /api/auth/login 200 in 103ms (next.js: 31ms, application-code: 72ms)
+ GET / 200 in 55ms (next.js: 36ms, application-code: 19ms)
+ GET / 200 in 16ms (next.js: 1.4ms, application-code: 14ms)
+ GET /api/chat/sessions 200 in 21ms (next.js: 3ms, application-code: 18ms)
+ GET /api/findings?q=&severity=&page=1 200 in 116ms (next.js: 54ms, application-code: 63ms)
+ GET /api/findings?q=&severity=&page=1 200 in 117ms (next.js: 54ms, application-code: 63ms)
+ GET /api/findings?q=&severity=&page=1 200 in 118ms (next.js: 54ms, application-code: 64ms)
+ GET /api/chat/sessions 200 in 120ms (next.js: 54ms, application-code: 66ms)
+ GET /api/findings?q=&severity=&page=1 200 in 11ms (next.js: 0.5ms, application-code: 10ms)
+ GET /api/pentests 200 in 52ms (next.js: 28ms, application-code: 25ms)
+ GET /api/pentests 200 in 53ms (next.js: 28ms, application-code: 26ms)
+ GET /api/native-catalog 200 in 1075ms (next.js: 54ms, application-code: 1021ms)
+ GET /api/native-catalog 200 in 1083ms (next.js: 54ms, application-code: 1029ms)
+ GET /api/native-catalog? 200 in 789ms (next.js: 4ms, application-code: 785ms)
+ GET /api/native-catalog? 200 in 394ms (next.js: 28ms, application-code: 366ms)
+ GET /api/chat/sessions 200 in 13ms (next.js: 3ms, application-code: 11ms)
+ GET /api/chat/sessions 200 in 15ms (next.js: 0.4ms, application-code: 14ms)
+ GET / 200 in 103ms (next.js: 70ms, application-code: 32ms)
+ POST /api/chat/sessions/ses-default/messages 502 in 394ms (next.js: 376ms, application-code: 19ms)
+ POST /api/chat/sessions/ses-default/messages 200 in 623ms (next.js: 4ms, application-code: 619ms)
+ GET / 200 in 429ms (next.js: 0.6ms, application-code: 428ms)
