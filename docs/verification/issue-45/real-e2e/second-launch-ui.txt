@@ -1,0 +1,51 @@
+page: 723e8322-090e-4e80-898f-63dc6df9c101
+My app — http://127.0.0.1:3000/?view=pentests
+- generic
+  - generic
+    - generic
+      - StaticText "Flocks"
+    - button "Search ⌘K" [ref=e227]
+      - generic
+        - textbox "Search" [ref=e233]
+        - StaticText "⌘K"
+    - generic
+      - StaticText "首页"
+      - list [ref=e234] clickable [onclick]
+        - listitem [level=1]
+    - generic
+      - StaticText "AI 安全工作台"
+      - list [ref=e235] clickable [onclick]
+        - listitem [level=1]
+        - listitem [level=1]
+        - listitem [level=1]
+    - generic
+      - StaticText "AGENT SMITH"
+      - list [ref=e236] clickable [onclick]
+        - listitem [level=1]
+        - listitem [level=1]
+        - listitem [level=1]
+        - listitem [level=1]
+        - listitem [level=1]
+        - listitem [level=1]
+    - button "Resize or collapse sidebar" [ref=e228]
+  - main
+    - sectionheader
+      - button "AI Copilot" [ref=e229]
+        - StaticText "AI Copilot"
+      - button "设置" [ref=e230]
+        - StaticText "设置"
+    - generic
+      - main
+        - sectionheader
+        - button "测试目标 Target" [ref=e374]
+        - button "认证与测试指令 Authentication" [ref=e375]
+        - button "测试深度 Scan Mode" [ref=e376]
+        - button "执行上限 Execution Limits" [ref=e377]
+        - button "5 检查并启动 Review & Launch" [ref=e378]
+        - generic
+        - sectionfooter
+        - complementary
+- button "Open Next.js Dev Tools" [expanded=false, ref=e232]
+  - image
+- alert
+
