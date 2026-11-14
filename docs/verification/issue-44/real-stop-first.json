@@ -1,0 +1,67 @@
+{
+  "scope": "Only http://host.docker.internal:8099, independent static fixture; quick mode; maxTurns 20",
+  "startedAt": "2026-11-14T04:01:06.958Z",
+  "steps": [],
+  "taskId": "ff442747-539c-45e3-92a4-b65830663d63",
+  "start": {
+    "status": 202,
+    "body": {
+      "runtime": {
+        "status": "preparing",
+        "phase": "worker_starting",
+        "pid": 67881,
+        "startedAt": "2026-11-14T04:01:07.853Z",
+        "updatedAt": "2026-11-14T04:01:07.853Z",
+        "runName": "ff442747-539c-45e3-92a4-b65830663d63"
+      }
+    }
+  },
+  "latestRuntime": {
+    "status": "running",
+    "phase": "Waiting for the first model response",
+    "pid": 67881,
+    "startedAt": "2026-11-14T04:01:08.021358+00:00",
+    "updatedAt": "2026-11-14T04:01:13.991716+00:00",
+    "runName": "ff442747-539c-45e3-92a4-b65830663d63"
+  },
+  "beforeStop": {
+    "status": "running",
+    "workerPid": 67881,
+    "containers": {
+      "command": "docker ps -aq --filter label=strix-run-id=ff442747-539c-45e3-92a4-b65830663d63",
+      "stdout": "34023993ac1c\n",
+      "exitStatus": 0
+    }
+  },
+  "stop": {
+    "status": 200,
+    "body": {
+      "runtime": {
+        "status": "stopped",
+        "phase": "stopped_by_user",
+        "pid": 67881,
+        "startedAt": "2026-11-14T04:01:08.021358+00:00",
+        "updatedAt": "2026-11-14T04:01:16.087Z",
+        "runName": "ff442747-539c-45e3-92a4-b65830663d63",
+        "endedAt": "2026-11-14T04:01:16.087Z",
+        "error": "用户结束了当前测试。"
+      }
+    }
+  },
+  "afterStop": {
+    "status": "stopped",
+    "worker": {
+      "command": "ps -p 67881 -o pid=,stat=,pgid=",
+      "stdout": "",
+      "exitStatus": 1
+    },
+    "containers": {
+      "command": "docker ps -aq --filter label=strix-run-id=ff442747-539c-45e3-92a4-b65830663d63",
+      "stdout": "",
+      "exitStatus": 0
+    },
+    "activeSlotOwnedByTask": false
+  },
+  "passed": true,
+  "finishedAt": "2026-11-14T04:01:16.156Z"
+}
