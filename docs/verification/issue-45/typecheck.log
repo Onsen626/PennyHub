@@ -1,0 +1,6 @@
+
+> next-app@0.0.1 typecheck
+> tsc --noEmit
+
+
+npm run typecheck EXIT_STATUS=0

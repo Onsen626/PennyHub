@@ -101,6 +101,7 @@ spec.loader.exec_module(worker_module)
 worker_module.check_runtime = lambda source: {"image": "fake-image"}
 
 payload = {
+    "executionId": "worker-stop-fixture",
     "directory": str(DIRECTORY),
     "sourcePath": str(DIRECTORY),
     "slot": str(DIRECTORY / "slot.json"),
@@ -123,7 +124,7 @@ if code != 0:
     print(f"worker exited with {code}", file=sys.stderr)
     raise SystemExit(2)
 
-runtime = json.loads((DIRECTORY / "runtime.json").read_text(encoding="utf-8"))
+runtime = json.loads((DIRECTORY / "execution-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
 for name in ("runner-cleaned", "report-cleaned"):
     if not (DIRECTORY / name).exists():
         print(f"missing {name}", file=sys.stderr)

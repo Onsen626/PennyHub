@@ -1,0 +1,33 @@
+✔ confirmed start establishes an execution identity without assigning the platform PID to the worker (0.707875ms)
+✔ only the current execution can publish its worker identity and enter running (0.238125ms)
+✔ stop requests enter stopping idempotently and reject late running events (0.101708ms)
+✔ stopped requires both process group exit and sandbox cleanup confirmation (0.122125ms)
+✔ completion requires a durable final result and failures and interruptions preserve identity (0.092708ms)
+✔ cleanup observations preserve lifecycle status and increment the public revision (0.066958ms)
+✖ execution progress updates its revision without changing status or assigning worker identity during preparation (0.076834ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 6
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 283.5545
+
+✖ failing tests:
+
+test at tests/pentest-lifecycle.unit.test.mjs:209:1
+✖ execution progress updates its revision without changing status or assigning worker identity during preparation (0.076834ms)
+  Error: Invalid Pentest transition: preparing + EXECUTION_PROGRESS (INVALID_TRANSITION)
+      at transitionPentestLifecycle (file:///private/var/folders/t1/bgbq7gz57jgcq4fkc603y0f00000gn/T/penny-lifecycle-B8cvIa/lifecycle.mjs:74:11)
+      at TestContext.<anonymous> (file:///Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/tests/pentest-lifecycle.unit.test.mjs:211:20)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1103:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:785:18)
+      at Test.postRun (node:internal/test_runner/test:1232:19)
+      at Test.run (node:internal/test_runner/test:1160:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7) {
+    code: 'INVALID_TRANSITION',
+    status: 'preparing',
+    event: 'EXECUTION_PROGRESS'
+  }

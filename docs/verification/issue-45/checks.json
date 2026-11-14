@@ -1,0 +1,49 @@
+{
+  "checks": [
+    {
+      "command": "npm ci",
+      "cwd": "/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation",
+      "log": "npm-ci.log",
+      "exitStatus": 0
+    },
+    {
+      "command": "npm run typecheck",
+      "cwd": "/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation",
+      "log": "typecheck.log",
+      "exitStatus": 0
+    },
+    {
+      "command": "npm run lint",
+      "cwd": "/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation",
+      "log": "lint.log",
+      "exitStatus": 0
+    },
+    {
+      "command": "npm test",
+      "cwd": "/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation",
+      "log": "npm-test.log",
+      "exitStatus": 0
+    },
+    {
+      "command": "npm run build",
+      "cwd": "/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation",
+      "log": "build.log",
+      "exitStatus": 0
+    }
+  ],
+  "testCounts": [
+    45,
+    2,
+    8,
+    1,
+    3,
+    13,
+    7
+  ],
+  "totalTests": 79,
+  "sourceManifestVerified": true,
+  "sourceFileCount": 24,
+  "nativeStrixCommit": "06015506625a78b981ae0b34be40239fc1b389be",
+  "realScansPerformed": false,
+  "realDockerOperationsPerformed": false
+}

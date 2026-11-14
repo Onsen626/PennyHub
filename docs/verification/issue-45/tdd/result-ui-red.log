@@ -1,0 +1,31 @@
+✖ browser creates, confirms, reloads, and inspects a Web App Pentest (18681.970042ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19184.293125
+
+✖ failing tests:
+
+test at tests/pentest-ui.test.mjs:9:1
+✖ browser creates, confirms, reloads, and inspects a Web App Pentest (18681.970042ms)
+  Error: expect(locator).toHaveText(expected) failed
+  
+  Locator: getByTestId('pentest-result-completeness')
+  Expected: "最终结果"
+  Timeout: 5000ms
+  Error: element(s) not found
+  
+  Call log:
+    - Expect "toHaveText" getByTestId('pentest-result-completeness') with timeout 5000ms
+    - waiting for getByTestId('pentest-result-completeness')
+  
+      at captureRawStack (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/node_modules/playwright-core/lib/coreBundle.js:9551:17)
+      at callMatcherAsStep (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/node_modules/playwright/lib/matchers/expect.js:13342:57)
+      at Object.toHaveText (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/node_modules/playwright/lib/matchers/expect.js:13334:23)
+      at TestContext.<anonymous> (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/tests/pentest-ui.test.mjs:111:67) {
+    matcherResult: { name: 'toHaveText', expected: '最终结果', message: `expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('pentest-result-completeness')\nExpected: "最终结果"\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n  - Expect "toHaveText" getByTestId('pentest-result-completeness') with timeout 5000ms\n  - waiting for getByTestId('pentest-result-completeness')\n`, pass: false, actual: undefined, log: [ `  - Expect "toHaveText" getByTestId('pentest-result-completeness') with timeout 5000ms`, "  - waiting for getByTestId('pentest-result-completeness')" ], timeout: 5000, ariaSnapshot: '- text: Flocks\n- button "⌘K":\n  - textbox "Search":\n    - /placeholder: 搜索智能体、工具、CVE 编号，或按 ⌘K 唤起命令面板...\n  - text: ⌘K\n- text: 首页\n- list:\n  - listitem:\n    - button "控制台首页"\n- text: AI 安全工作台\n- list:\n  - listitem:\n    - button "Dashboard"\n  - listitem:\n    - button "Pentests"\n  - listitem:\n    - button "现有风险"\n- text: AGENT SMITH\n- list:\n  - listitem:\n    - button "Agents 17"\n  - listitem:\n    - button "Workflows 4"\n  - listitem:\n    - button "Skills"\n  - listitem:\n    - button "Tools"\n  - listitem:\n    - button "Models"\n  - listitem:\n    - button "协同通道"\n- button "Resize or collapse sidebar"\n- main:\n  - button "AI Copilot"\n  - button "设置"\n  - main:\n    - button "Back to Pentests"\n    - heading "Web App Pentest details" [level=1]\n    - paragraph: d41699ac-c561-4ee7-a2d1-2939f448bf24\n    - text: completed\n    - paragraph: 进程组退出：已确认；沙箱清理：已确认\n    - tablist "Test details":\n      - tab "Overview" [selected]\n      - tab "Activity"\n      - tab "Agents"\n      - tab "Findings"\n      - tab "Artifacts"\n    - tabpanel "Overview":\n      - heading "Run details" [level=2]\n      - term: Targets\n      - definition: http://127.0.0.1:8080/\n      - term: Scan mode\n      - definition: deep\n      - term: Phase\n      - definition: resources_confirmed_clear\n      - term: Created\n      - definition: 2026-11-14T04:49:19.492Z\n      - term: Started\n      - definition: 2026-11-14T04:49:20.135Z\n      - term: Ended\n      - definition: 2026-11-14T04:49:21.978Z\n      - term: Cost (USD)\n      - definition: 未记录\n      - heading "Report" [level=2]\n      - paragraph: Strix 原生输出。平台尚未对发现进行独立复核。\n      - text: Controlled execution fixture\n- alert' }
+  }
