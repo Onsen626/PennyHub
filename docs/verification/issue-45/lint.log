@@ -1,0 +1,14 @@
+
+> next-app@0.0.1 lint
+> eslint
+
+
+/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/components/ui/color-picker.tsx
+  1951:7  warning  Unused eslint-disable directive (no problems were reported from 'no-restricted-syntax')
+  2426:5  warning  Unused eslint-disable directive (no problems were reported from 'no-restricted-syntax')
+
+✖ 2 problems (0 errors, 2 warnings)
+  0 errors and 2 warnings potentially fixable with the `--fix` option.
+
+
+npm run lint EXIT_STATUS=0

@@ -132,7 +132,9 @@ class Worker:
             self.state["error"] = self.scrub(error)
         if self.state["status"] in {"completed", "failed", "interrupted", "stopped"}:
             self.state["endedAt"] = now()
-        self.save("runtime.json", self.state)
+        record = {**self.state, "at": now(), "executionId": self.payload["executionId"], "workerPid": os.getpid(), "workerPgid": os.getpgrp()}
+        with (self.directory / "execution-events.jsonl").open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(self.scrub(record), ensure_ascii=False) + "\n")
         self.event("status", {"phase": phase, "status": self.state["status"]})
 
     def event(self, kind: str, data: Any, agent_id: str | None = None) -> None:
@@ -140,7 +142,7 @@ class Worker:
             data = dataclasses.asdict(data)
         elif hasattr(data, "model_dump"):
             data = data.model_dump(mode="json")
-        record = self.scrub({"at": now(), "type": kind, "agentId": agent_id, "data": data})
+        record = self.scrub({"at": now(), "executionId": self.payload["executionId"], "type": kind, "agentId": agent_id, "data": data})
         with (self.directory / "events.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
 
@@ -244,12 +246,6 @@ class Worker:
             if self.state["status"] != "completed":
                 await snapshot()
 
-    def release(self) -> None:
-        slot = Path(self.payload["slot"])
-        with contextlib.suppress(FileNotFoundError, ValueError):
-            owner = json.loads(slot.read_text())
-            if owner.get("taskId") == self.task["id"]:
-                slot.unlink()
 
 
 class RedactedLog:
@@ -300,8 +296,6 @@ def main() -> int:
     except BaseException as error:
         worker.status("native_runner_failed", "failed", f"{type(error).__name__}: {error}")
         return 1
-    finally:
-        worker.release()
 
 
 if __name__ == "__main__":

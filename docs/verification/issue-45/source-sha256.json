@@ -1,0 +1,126 @@
+{
+  "baselineCommit": "789caa202749f36ef334215a30183564e23290b8",
+  "branch": "issue-45-implementation",
+  "files": [
+    {
+      "path": "app/api/pentests/[taskId]/start/route.ts",
+      "baselineSha256": "5dc4c49929a623625965e4bccbf67b44f7c0e574c417212e938a76c973a5554a",
+      "modifiedSha256": "3d1fcf4003c72e45d449cb16552020956b0c776e3b31654a981956a1849bc665"
+    },
+    {
+      "path": "app/api/pentests/[taskId]/stop/route.ts",
+      "baselineSha256": "7808f58e543f0e6e17f7ac028eb245475b5191750ecc95de01c0fa351f777d54",
+      "modifiedSha256": "709123f1283627bb1a8121e7de34566b6d59050f5905838aed96cdacf469ca69"
+    },
+    {
+      "path": "components/platform/pentest-details.tsx",
+      "baselineSha256": "d930428cdd498a7c29d04a6671e899b73ed3abd61238cdd2d2025fef2d9e914f",
+      "modifiedSha256": "30314d34aa6b5e73a32a1351352755ee7b2697186829ff310ed0a0807b1f7b35"
+    },
+    {
+      "path": "components/platform/pentests-panel.tsx",
+      "baselineSha256": "225195703a742319bd2c95d6b890644c9a0236fa62190dde396a4e74a7b3ebb4",
+      "modifiedSha256": "5f88d37bd1337733aedfd2d485eebc64035e3ac65f5fc8840fe9bf338e70cf9d"
+    },
+    {
+      "path": "instrumentation.ts",
+      "baselineSha256": null,
+      "modifiedSha256": "c8fc254d89f322ecfe398be1dff6f2b7a75e24264f04843a6c1417107350ad12"
+    },
+    {
+      "path": "lib/pentest-lifecycle.ts",
+      "baselineSha256": "781a4106cdda324a8b23e80e481257972a94645bda91814131081716f836c6c5",
+      "modifiedSha256": "9baf148f527a44ec528552073f5bb7720cbe408da9c21fe04acb1abe004364fa"
+    },
+    {
+      "path": "lib/pentests.ts",
+      "baselineSha256": "596473b33925dda9c07a27a202c9f4701e9a823a29ededa5981898947cc49d0f",
+      "modifiedSha256": "a57d26308876e893b3fc6ecb39360055d1ec838fa3ba1d99c2480c57203ab004"
+    },
+    {
+      "path": "lib/server/pentest-manager.ts",
+      "baselineSha256": null,
+      "modifiedSha256": "496f35c13ae73c1b28907fcc9dd75a4349c7d25e70cab1bc58e1a7848207c5df"
+    },
+    {
+      "path": "lib/server/pentest-runtime.ts",
+      "baselineSha256": "2eb67360276ba99796dccef68cbdd753eb8a6bcb59269cb455ff50a82f9d41a6",
+      "modifiedSha256": "b803f9542eef7edee4f5c489e05d37cd516ed5ce2e77a04d90cc547b2d110aeb"
+    },
+    {
+      "path": "lib/server/pentests.ts",
+      "baselineSha256": "3ec2bddb765950c82f86593d038eee1611c3856c007645a23c7e34c7c0ac6d2a",
+      "modifiedSha256": "f26e2cb69f6690a268b0189b87906890917a84dc40d61d2c30bb9f8715911b63"
+    },
+    {
+      "path": "lib/server/strix-sandbox.ts",
+      "baselineSha256": "7ab7895e936debb1fad0ea558c91630b4e6e021327b1e918ad037ae8971bd323",
+      "modifiedSha256": "11b4124059bd135a4b3697bfe7fd35452d2328c11eef12545f84a5fbd02f5594"
+    },
+    {
+      "path": "scripts/strix-worker.py",
+      "baselineSha256": "3d70ec730a87306bd8fc5f529fe3c70c5bf3b3c0480fb651359042c995dadac5",
+      "modifiedSha256": "1de4ce22439f18f160d1f3f079360c3fc2bc136469bc053b96f28d5e677dd940"
+    },
+    {
+      "path": "tests/helpers/pentest-executor-fixture.mjs",
+      "baselineSha256": "59f23cad89aadf941f1ebd37e6ac935959cb0fc9cc238b0b2851d533070920c3",
+      "modifiedSha256": "ba6b3e7531ab53dce6fe783da5097e762f069ddb2b65f5c5b66986bd799c48f9"
+    },
+    {
+      "path": "tests/helpers/pentest-hung-executor-fixture.mjs",
+      "baselineSha256": "4d856d93611b088bf27ba9120e03ad22dd29773ec63b8ee627b831b6c5cdf978",
+      "modifiedSha256": "f1a309f1a4fb15c1fdb7860df3760374ee38feca2efc5375d722446461242c81"
+    },
+    {
+      "path": "tests/helpers/pentest-longrun-executor-fixture.mjs",
+      "baselineSha256": "cdf2d8f47e36e7032573698d819444a1cf309e8fa197815d77fcbea862f17618",
+      "modifiedSha256": "661a84d4a6f8ac30d923e2c92f87175f4a6fe693d976125ae76608ec70ae7ce1"
+    },
+    {
+      "path": "tests/helpers/pentest-preparing-executor-fixture.mjs",
+      "baselineSha256": "56d4c36b6425797d999f1cb9a4fa8d24e354efa57557575409cc8de8b25f3d1b",
+      "modifiedSha256": "76759648f57a4e2b5c41f6df23a9c6145234a9fe5ba07887f30885f678d984d9"
+    },
+    {
+      "path": "tests/helpers/platform-server.mjs",
+      "baselineSha256": "934511a6ebb5fa8050c5459cf359ab15cdbf4bf7e2b072a6c0bbc5f85950b4b8",
+      "modifiedSha256": "7c6abeaf61d8d4eabb1ab2f4b4ad074a95c09b7d1e3407de564990256f16825c"
+    },
+    {
+      "path": "tests/helpers/strix-worker-stop-harness.py",
+      "baselineSha256": "47d0687c659f72484658dfe96d7cb41705998bb05443a7a4c79c7073a956f0f9",
+      "modifiedSha256": "37662ae8cdccad9505529cd9e47f0bb85900c1bcf9b231bb812b2ea61f095fad"
+    },
+    {
+      "path": "tests/pentest-lifecycle.unit.test.mjs",
+      "baselineSha256": "059f67c33260316c69ff9e55700da1be6b66af0182ec9fc0f4d6505fa02acefe",
+      "modifiedSha256": "bf1d2364fd793136cebad628bee29517208c258aeb2d42f4f6cfa63f7139d909"
+    },
+    {
+      "path": "tests/pentest-runtime.test.mjs",
+      "baselineSha256": "53de47c4c4e49aa73364adacaf1144302aa7c86b390979cfd75effd51b5ab626",
+      "modifiedSha256": "ea8100de62ba7a6a049e71f91c1bbb4e24e74b8e131b750122e5ffa815790d82"
+    },
+    {
+      "path": "tests/pentest-stop-ui.test.mjs",
+      "baselineSha256": "8000a7bd01435e9a56a2e0d870ea7f473752a3a77edcc62d3d8c5f37137d0a46",
+      "modifiedSha256": "507046adb1ed77f7e98d552d4ad5625cd4e93ed5b642e9b570270bd1cc38b399"
+    },
+    {
+      "path": "tests/pentest-stop.test.mjs",
+      "baselineSha256": "982c922464668a301bc321ab7da8c0ec31a14f5bcf97bf4f7fe251c9ee5382cb",
+      "modifiedSha256": "710fe9b8f5f624fb0ba8bf5c169f6bbe301129080ea3c201c7ca8e80a60b2606"
+    },
+    {
+      "path": "tests/pentest-ui.test.mjs",
+      "baselineSha256": "642a5c81b531ee481356e6c8f06c10ec8d09dc40e6e7a5fa8ed9488d71ceac54",
+      "modifiedSha256": "8a68fb10c2b4b399b64a8a345e97ab181f10bc7bdd34326f02cda6e358dcafcc"
+    },
+    {
+      "path": "tests/strix-worker-stop.test.mjs",
+      "baselineSha256": "9f29c711f3698f1380470f5474794dbe90a636884a64a5d08514219d192f69bc",
+      "modifiedSha256": "3dc4705b8153f069b1b43a188299d3c05929344cf702184f162e7e58a96c0ef3"
+    }
+  ]
+}

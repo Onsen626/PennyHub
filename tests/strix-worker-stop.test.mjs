@@ -29,7 +29,10 @@ test("SIGTERM makes the worker run the Strix cleanup path and publish stopped", 
     )
 
     const runtime = JSON.parse(
-      await readFile(path.join(directory, "runtime.json"), "utf8")
+      (await readFile(path.join(directory, "execution-events.jsonl"), "utf8"))
+        .trim()
+        .split("\n")
+        .at(-1)
     )
     assert.equal(runtime.status, "stopped")
     assert.equal(runtime.phase, "stopped_by_user")

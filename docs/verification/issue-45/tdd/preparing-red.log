@@ -1,0 +1,29 @@
+✖ stopping during preparing terminates the worker, keeps the platform up, and frees the slot (12104.01025ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12151.383375
+
+✖ failing tests:
+
+test at tests/pentest-stop.test.mjs:199:1
+✖ stopping during preparing terminates the worker, keeps the platform up, and frees the slot (12104.01025ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  74026 !== null
+  
+      at TestContext.<anonymous> (file:///Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/tests/pentest-stop.test.mjs:209:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 74026,
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
