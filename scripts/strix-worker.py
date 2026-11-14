@@ -138,7 +138,13 @@ class Worker:
         self.event("status", {"phase": phase, "status": self.state["status"]})
 
     def event(self, kind: str, data: Any, agent_id: str | None = None) -> None:
-        if dataclasses.is_dataclass(data) and not isinstance(data, type):
+        # SDK RunItem references the live Agent, whose tools contain thread locks.
+        # Persist the SDK's public input item instead of deep-copying that runtime.
+        if getattr(data, "type", None) == "run_item_stream_event":
+            data = {"type": data.type, "name": data.name, "item": {"raw_item": data.item.to_input_item()}}
+        elif getattr(data, "type", None) == "agent_updated_stream_event":
+            data = {"type": data.type, "new_agent": {"name": data.new_agent.name}}
+        elif dataclasses.is_dataclass(data) and not isinstance(data, type):
             data = dataclasses.asdict(data)
         elif hasattr(data, "model_dump"):
             data = data.model_dump(mode="json")

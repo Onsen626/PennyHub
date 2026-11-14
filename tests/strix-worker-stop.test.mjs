@@ -43,3 +43,29 @@ test("SIGTERM makes the worker run the Strix cleanup path and publish stopped", 
     await rm(directory, { recursive: true, force: true })
   }
 })
+
+test("worker preserves tool events containing native agent locks and redacts credentials", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "penny-worker-events-"))
+  try {
+    const result = spawnSync(
+      python(),
+      ["tests/helpers/strix-worker-stop-harness.py", directory, "events"],
+      { encoding: "utf8", timeout: 30000 }
+    )
+    assert.equal(result.status, 0, result.stderr)
+    const text = await readFile(path.join(directory, "events.jsonl"), "utf8")
+    const events = text.trim().split("\n").map(JSON.parse)
+    const tool = events.find((event) => event.data?.name === "tool_called")
+    assert.equal(tool?.data.item.raw_item.name, "terminal")
+    assert.equal(tool?.data.item.raw_item.arguments, "[REDACTED]")
+    assert.equal(tool?.agentId, "root-agent")
+    assert.equal(tool?.executionId, "worker-stop-fixture")
+    assert.doesNotMatch(text, /fixture-secret|_thread.lock/)
+    const results = JSON.parse(
+      await readFile(path.join(directory, "results.json"), "utf8")
+    )
+    assert.equal(results.final, true)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
