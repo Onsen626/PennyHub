@@ -1,0 +1,82 @@
+{
+  "recordedAt": "2026-11-14T02:36:14.145661+00:00",
+  "baseline": "64b3dbc9adc1562fcfd3e0c9d1302d64c2ae6140",
+  "tests": {
+    "total": 63,
+    "groups": {
+      "unit": 31,
+      "findings": 2,
+      "api": 8,
+      "ui": 1,
+      "chat": 3,
+      "pentests": 11,
+      "catalog": 7
+    }
+  },
+  "commands": [
+    {
+      "command": "npm test",
+      "exitStatus": 0,
+      "literalOutput": "\n> next-app@0.0.1 test\n> npm run test:unit && npm run test:findings && npm run test:api && npm run test:ui && npm run test:chat && npm run test:pentests && npm run test:catalog\n\n\n> next-app@0.0.1 test:unit\n> node --test tests/pentest-inputs.unit.test.mjs tests/strix-runtime.unit.test.mjs tests/pentest-process.unit.test.mjs tests/pentest-estimate.unit.test.mjs\n\n✔ 50 turns estimate from the 60 tokens/s assumption (0.796459ms)\n✔ 100 turns double the 50-turn estimate (0.087292ms)\n✔ 500 turns span roughly 1.7 to 2.2 hours (0.067167ms)\n✔ invalid turn counts have no estimate (0.083209ms)\n✔ durations under an hour read as minutes and longer ones as hours (0.081417ms)\n✔ preset turn counts show the agreed labels (0.064792ms)\n✔ custom turn counts keep the computed range (0.059542ms)\n✔ target lists trim CRLF, blank lines and whole-line comments (0.944458ms)\n✔ targets normalize domains, IPv4, IPv6, paths and duplicate URLs (3.767417ms)\n✔ targets reject unsupported schemes, credentials, fragments and invalid hosts (0.316125ms)\n✔ Postman accepts collection UUID and supported environment parameters (0.24975ms)\n✔ Postman rejects malformed UUID, protocol, credentials and unknown parameters (0.149917ms)\n✔ input paths resolve symlinks and reject relative, missing and directory paths (2.858833ms)\n✔ text input preserves content and enforces UTF-8 byte limits (1.727125ms)\n✔ OpenAPI JSON summarizes servers, operations, parameters, bodies and authentication (1.025041ms)\n✔ Swagger YAML resolves host, base path and schemes (1.972875ms)\n✔ Postman traverses nested folders and resolves collection variables (0.6415ms)\n✔ API specifications reject malformed JSON/YAML, unknown formats and empty operations (1.505667ms)\n✔ a process that is already gone needs no signal (0.823292ms)\n✔ a worker that exits on SIGTERM is never escalated (0.163375ms)\n✔ a worker ignoring SIGTERM is escalated to SIGKILL (0.113834ms)\n✔ a worker that survives SIGKILL is reported as not terminated (0.103375ms)\n✔ the platform's own pid is never selected as the stop target (0.078459ms)\n✔ group liveness outlives the group leader (190.441667ms)\n✔ a zombie is alive to signals but cannot run, so it must not hold a lock (35.530583ms)\n✔ a live process and a dead pid are not zombies (37.571792ms)\n✔ a saved runtime whose checkout is gone falls back to the bundled one (0.754833ms)\n✔ a usable saved runtime is used as a whole (0.073333ms)\n✔ an explicit source uses that checkout's interpreter (0.077625ms)\n✔ an explicit interpreter wins and keeps a usable source for PYTHONPATH (0.064209ms)\n✔ an explicit interpreter with a stale saved runtime uses the bundled source (0.067209ms)\nℹ tests 31\nℹ suites 0\nℹ pass 31\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 650.741459\n\n> next-app@0.0.1 test:findings\n> node --test tests/findings-query.test.mjs\n\n✔ query preserves per-task identities, missing/corrupt counts and unknown severity (44.051334ms)\n✔ same native identity across tasks remains independent and legacy completeness is unknown (7.136ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 303.099709\n\n> next-app@0.0.1 test:api\n> node --test tests/platform-api.test.mjs\n\n✔ unauthenticated access redirects pages and rejects configuration APIs (3841.823542ms)\n✔ local administrator can login, read session, and logout revokes the cookie (1581.421167ms)\n✔ saved model configuration survives reload and never returns its API key (59.479958ms)\n✔ model connection test uses real HTTP and classifies provider errors without leaking secrets (355.300334ms)\n✔ configuration key preservation, replacement, and clearing have explicit behavior (34.747708ms)\n✔ configuration and authenticated session remain available after server restart (5600.193083ms)\n✔ unauthenticated writes and cross-origin writes cannot change the saved configuration (217.491625ms)\n✔ provider timeout after response headers is reported as a timeout (23019.060166ms)\nℹ tests 8\nℹ suites 0\nℹ pass 8\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 38867.514208\n\n> next-app@0.0.1 test:ui\n> node --test tests/platform-ui.test.mjs\n\n✔ browser login, Models configuration, connection feedback, restart, and logout (33904.446292ms)\nℹ tests 1\nℹ suites 0\nℹ pass 1\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 34123.666375\n\n> next-app@0.0.1 test:chat\n> node --test tests/chat-copilot.test.mjs\n\n✔ chat session APIs require authentication and enforce same-origin on writes (2234.432125ms)\n✔ chat API reuses saved model configuration, deduplicates initial message, preserves attachment metadata, and survives restart (5724.000125ms)\n✔ browser verifies Home composer, fullscreen/drawer switching, state retention, navigation renames, and reload persistence (16699.648542ms)\nℹ tests 3\nℹ suites 0\nℹ pass 3\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 29475.267375\n\n> next-app@0.0.1 test:pentests\n> node --test --test-concurrency=1 tests/pentests.test.mjs tests/pentest-runtime.test.mjs tests/pentest-stop.test.mjs tests/pentest-stop-ui.test.mjs tests/pentest-ui.test.mjs tests/strix-worker-stop.test.mjs tests/strix-worker-runtime.test.mjs\n\n✔ confirmed Web App Pentest runs independently, survives restart, and preserves black-box inputs (17302.090333ms)\n✔ a detail poll that started before stop cannot restore the running state (16252.096541ms)\n✔ end test escalates until the worker process group is gone and keeps the stopped state (14057.042833ms)\n✔ stopping during preparing terminates the worker, keeps the platform up, and frees the slot (8589.895458ms)\n✔ a stop request recorded before launch aborts the start without reviving the task (7097.45675ms)\n✔ an unkillable worker yields STOP_FAILED and its zombie slot is reclaimable (13954.051292ms)\n✔ browser creates, confirms, reloads, and inspects a Web App Pentest (17834.3735ms)\n✔ Web App Pentest draft validates targets, hides credentials and persists (12598.554625ms)\n✔ Web App Pentest accepts target lists, API specifications, Postman targets, and instruction files (6081.112208ms)\n✔ runtime check reports a missing Strix checkout without leaking CalledProcessError (168.8625ms)\n✔ SIGTERM makes the worker run the Strix cleanup path and publish stopped (705.819833ms)\nℹ tests 11\nℹ suites 0\nℹ pass 11\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 115298.076\n\n> next-app@0.0.1 test:catalog\n> node --test --test-concurrency=1 tests/native-catalog.test.mjs tests/native-catalog-ui.test.mjs\n\n✔ Skills and Tools browse real source, details, categories and task usage without starting scans (12918.086ms)\n✔ authenticated catalog exposes actual bundled skill content and source revision (6687.675542ms)\n✔ tool catalog distinguishes native functions, sandbox references and MCP configuration (5665.971125ms)\n✔ catalog usage comes from selected task events and identifies Agent without exposing arguments (6232.3445ms)\n✔ MCP declarations stay unverified, hide credentials and report configuration read errors (6347.46575ms)\n✔ catalog follows configured Strix checkout and reports its actual Git revision (5656.023334ms)\n✔ catalog uses the selected Strix interpreter when service PATH resolves an incompatible python3 (5683.198375ms)\nℹ tests 7\nℹ suites 0\nℹ pass 7\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 49448.6415\n"
+    },
+    {
+      "command": "npm run typecheck",
+      "exitStatus": 0,
+      "literalOutput": "\n> next-app@0.0.1 typecheck\n> tsc --noEmit\n\n"
+    },
+    {
+      "command": "npm run lint",
+      "exitStatus": 0,
+      "literalOutput": "\n> next-app@0.0.1 lint\n> eslint\n\n\n/Users/jennifer/orca/workspaces/PennyHub/https-github.com-Onsen626-PennyAgent.git/components/ui/color-picker.tsx\n  1951:7  warning  Unused eslint-disable directive (no problems were reported from 'no-restricted-syntax')\n  2426:5  warning  Unused eslint-disable directive (no problems were reported from 'no-restricted-syntax')\n\n✖ 2 problems (0 errors, 2 warnings)\n  0 errors and 2 warnings potentially fixable with the `--fix` option.\n\n"
+    },
+    {
+      "command": "PENNY_NEXT_DIST_DIR=.next-native-catalog-build npm run build",
+      "exitStatus": 0,
+      "literalOutput": "\n> next-app@0.0.1 build\n> next build\n\n▲ Next.js 16.4.3 (Turbopack)\n✓ Running next.config.ts took 17ms\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 5.9s\n  Running TypeScript ...\n\n  We detected TypeScript in your project and reconfigured your tsconfig.json file for you.\n  The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:\n\n  \t- include was updated to add '.next-native-catalog-build/types/**/*.ts'\n  \t- include was updated to add '.next-native-catalog-build/dev/types/**/*.ts'\n\n  Finished TypeScript in 5.5s ...\n  Collecting page data using 7 workers ...\n  Generating static pages using 7 workers (0/15) ...\n  Generating static pages using 7 workers (3/15) \r\n  Generating static pages using 7 workers (7/15) \r\n  Generating static pages using 7 workers (11/15) \r\n✓ Generating static pages using 7 workers (15/15) in 115ms\nTurbopack build encountered 1 warning:\n./lib/server/native-catalog.ts:172:43\nWarning: Dynamic filesystem access causes tracing of the whole project\n  \u001b[90m170 |\u001b[0m   \u001b[36mconst\u001b[0m connections: string[] = []\n  \u001b[90m171 |\u001b[0m   \u001b[36mtry\u001b[0m {\n\u001b[33m\u001b[1m>\u001b[0m \u001b[90m172 |\u001b[0m     \u001b[36mconst\u001b[0m raw: unknown = \u001b[33mJSON\u001b[0m.parse(\u001b[36mawait\u001b[0m readFile(file, \u001b[32m\"utf8\"\u001b[0m))\n  \u001b[90m    |\u001b[0m                                           \u001b[33m\u001b[1m^^^^^^^^^^^^^^^^^^^^^^\u001b[0m\n  \u001b[90m173 |\u001b[0m     \u001b[36mif\u001b[0m (!\u001b[33mArray\u001b[0m.isArray(raw)) \u001b[36mreturn\u001b[0m { items, connections, status: \u001b[32m\"invalid\"\u001b[0m }\n  \u001b[90m174 |\u001b[0m     \u001b[36mconst\u001b[0m only = (process.env.\u001b[33mSTRIX_MCP_ONLY\u001b[0m || \u001b[32m\"\"\u001b[0m)\n  \u001b[90m175 |\u001b[0m       .split(\u001b[32m\",\"\u001b[0m)\n\nStatic analysis determined that this filesystem access causes the whole project to be traced and included in the output.\nThis is usually unintentional and leads to all source files (including the public folder) to be deployed as part of the server code.\nThis can slow down deployments or lead to failures when size limits are exceeded.\nTo resolve this, you can\n- make sure the path is statically scoped to some subfolder, for example path.join(process.cwd(), 'data', bar), or\n- only use them in development, or\n- opt out by adding an ignore comment to the highlighted call: fs.readFile(/*turbopackIgnore: true*/ ...), or\n- remove them.\n\nImport trace:\n  App Route:\n    ./lib/server/native-catalog.ts\n    ./app/api/native-catalog/route.ts\n\n\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ƒ /\n├ ○ /_not-found\n├ ƒ /api/auth/login\n├ ƒ /api/auth/logout\n├ ƒ /api/auth/session\n├ ƒ /api/chat/sessions\n├ ƒ /api/chat/sessions/[sessionId]\n├ ƒ /api/chat/sessions/[sessionId]/messages\n├ ƒ /api/findings\n├ ƒ /api/model-config\n├ ƒ /api/model-config/test\n├ ƒ /api/native-catalog\n├ ƒ /api/pentests\n├ ƒ /api/pentests/[taskId]\n├ ƒ /api/pentests/[taskId]/artifacts\n├ ƒ /api/pentests/[taskId]/events\n├ ƒ /api/pentests/[taskId]/results\n├ ƒ /api/pentests/[taskId]/start\n├ ƒ /api/pentests/[taskId]/stop\n├ ƒ /api/pentests/reference-files\n└ ƒ /login\n\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\n"
+    }
+  ],
+  "lint": {
+    "errors": 0,
+    "existingWarnings": 2,
+    "note": "First full lint included generated Next directories. Added only the two catalog output directories to global ignores; rerun passed."
+  },
+  "review": {
+    "standardsFindings": 0,
+    "specFindings": 0,
+    "previousSpecFindingsFixed": [
+      "duplicate call event association",
+      "MCP discovery output catalog mapping"
+    ]
+  },
+  "boundaries": [
+    "public catalog API",
+    "browser UI",
+    "fixture execution events; no live scans or MCP connections"
+  ],
+  "limitations": [
+    "Legacy task events without recognizable structured tool output keep MCP inventory unknown.",
+    "Catalog presence and invocation records do not establish environment availability or execution success."
+  ],
+  "productionTrace": "Confirmed scripts/strix-catalog.py, STRIX_COMMIT, pyproject.toml and agents/factory.py in the catalog route trace.",
+  "sourceHashes": {
+    ".gitignore": "857024fae53d8893acec7fe35eb55bed52d06b45afdd436839f4760ef1a63580",
+    ".github/workflows/ci.yml": "33a0352e3dd8a5a03fee3f31c7bb817473fc640e4028011245ee5f2f393a816f",
+    "app/api/native-catalog/route.ts": "346235ff5d72975f68a2e2fd6f51729a15d6cfc235225bdcd63885ca3bd5ba57",
+    "components/platform/native-catalog-panel.tsx": "1808228be4834b5996b1012cf462f6df63c063a8182e525b2d1798e622990537",
+    "components/platform/flocks-page.tsx": "c24a9832e1aeb278b6dbeb5740b348e117461a2f99b12583c5955bdbbad40ac0",
+    "components/sidebar-app/app-sidebar.tsx": "93a5c993702f845f4f297ed12ae8c588a347a9bc345c23942bbbc141994dad05",
+    "lib/native-catalog.ts": "a9a70e2e7dff994b242e3ac8511414783bec7159f02f0930753413bfb1387098",
+    "lib/server/native-catalog.ts": "fdfa11566e4d1b5856ce34849b8f7415fbb02cbb4e594101c27d1b5b797f8a09",
+    "lib/server/native-catalog-usage.ts": "e6d4b693050c7017c1b4b4f96405a7598a5a0c46b61b027efdbac7080e540266",
+    "next.config.ts": "f8489b59d9736654c706424bb28eb916f7cb9fa2718008b11e72f8c189519ab6",
+    "scripts/strix-catalog.py": "bd1b36aca47c74552c992132fdd01222ce2a07132331711b2364fc66eabbad26",
+    "tests/native-catalog.test.mjs": "df5edb34acab0ad40697348af548bc9937562432b010ba9dd8692fc472199ba5",
+    "tests/native-catalog-ui.test.mjs": "745818bc7b7ce3b0f22131dfb79741331590c006c6a635c5d54dac0335b210b3",
+    "tests/chat-copilot.test.mjs": "78157995e3a692582afbbb4b857689cc250553ec2322f4ea977c3ec1b536e3f2",
+    "tests/helpers/platform-server.mjs": "934511a6ebb5fa8050c5459cf359ab15cdbf4bf7e2b072a6c0bbc5f85950b4b8",
+    "docs/implementation/issue-10-native-catalog.md": "b33b278863db0b3cf46aa83d155ae77276f40e889655e24d2e10bf0d52514409",
+    "package.json": "db8a424dfdbee58685b8f37a25bbf846ae1c360eb2d2f7f45585b14ea4afa5a9",
+    "eslint.config.mjs": "905cba1fc94a8b66e9d3833d67c08a597a5a0c0b17a6043e28e638707c476c0a",
+    "docs/research/Strix-Tools-用途汇总.md": "d9f34e409b247e41b8961e209ea9100170a9e711e3b4b64950f4e0326bbbe882"
+  }
+}

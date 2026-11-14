@@ -45,3 +45,11 @@ next-env.d.ts
 /.pennyagent/
 /third_party/strix/.venv/
 /.next-platform-test/
+
+/.next-native-catalog-test/
+
+__pycache__/
+
+*.pyc
+
+/.next-native-catalog-build/

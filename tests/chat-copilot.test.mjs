@@ -340,7 +340,7 @@ test("browser verifies Home composer, fullscreen/drawer switching, state retenti
 
     // 4. Go to Tools page, set a filter state, and open AI Copilot from non-Home page (defaults to sidebar drawer)
     await sidebar.getByRole("button", { name: /Tools/ }).click()
-    const toolFilter = page.getByPlaceholder("筛选 149 个工具名称或协议...")
+    const toolFilter = page.getByRole("region", { name: "Strix 原生目录" }).getByLabel("搜索目录")
     await toolFilter.fill("nuclei")
     await expect(page.getByText("nuclei", { exact: true })).toBeVisible()
 

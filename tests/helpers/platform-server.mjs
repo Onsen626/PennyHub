@@ -4,7 +4,10 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import net from "node:net"
 
-export async function createPlatformServer() {
+export async function createPlatformServer({
+  distDir = ".next-platform-test",
+  env: overrides = {},
+} = {}) {
   const dataDir = await mkdtemp(path.join(tmpdir(), "penny-platform-"))
   const listener = net.createServer()
   await new Promise((resolve) => listener.listen(0, "127.0.0.1", resolve))
@@ -12,8 +15,9 @@ export async function createPlatformServer() {
   await new Promise((resolve) => listener.close(resolve))
   const env = {
     ...process.env,
+    ...overrides,
     PENNY_DATA_DIR: dataDir,
-    PENNY_NEXT_DIST_DIR: ".next-platform-test",
+    PENNY_NEXT_DIST_DIR: distDir,
     NEXT_TELEMETRY_DISABLED: "1",
   }
   const base = `http://127.0.0.1:${port}`

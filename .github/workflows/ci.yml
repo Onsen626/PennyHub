@@ -58,6 +58,8 @@ jobs:
         run: npm run test:ui 2>&1 | tee "$CI_LOG_DIR/browser.log"
       - name: Chat API and browser tests
         run: npm run test:chat 2>&1 | tee "$CI_LOG_DIR/chat.log"
+      - name: Native Skills and Tools catalog tests
+        run: npm run test:catalog 2>&1 | tee "$CI_LOG_DIR/catalog.log"
       - name: Pentest behavior tests
         run: npm run test:pentests 2>&1 | tee "$CI_LOG_DIR/pentests.log"
       - name: Production build

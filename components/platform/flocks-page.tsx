@@ -9,7 +9,6 @@ import {
   GitBranch,
   MessageSquare,
   ShieldCheck,
-  Terminal,
   Play,
 } from "lucide-react"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
@@ -36,6 +35,9 @@ import {
 } from "@/components/sidebar-app/app-sidebar"
 import { SidebarInsetTopbar } from "@/components/sidebar-app/inset-topbar"
 import { ModelSettings } from "@/components/platform/model-settings"
+import type { NativeCatalog } from "@/lib/native-catalog"
+import { usePentestRequest } from "@/lib/pentests-client"
+import { NativeCatalogPanel } from "@/components/platform/native-catalog-panel"
 import { PentestsPanel } from "@/components/platform/pentests-panel"
 import { SettingsDialog } from "@/components/dialog-sidebar/settings-dialog"
 import { useIcons } from "@/lib/icon-context"
@@ -50,10 +52,7 @@ import {
   FLOCKS_METRICS,
   FLOCKS_AGENTS,
   FLOCKS_WORKFLOWS,
-  FLOCKS_SKILLS,
-  FLOCKS_TOOLS,
   type FlocksModuleId,
-  type FlocksTool,
 } from "@/lib/flocks-data"
 import { FindingsPanel } from "@/components/platform/findings-panel"
 import { cn } from "@/lib/utils"
@@ -79,28 +78,6 @@ const AGENT_CATEGORY_LABELS: Record<string, string> = {
   report: "证据报告",
 }
 
-const SKILL_DOMAIN_LABELS: Record<string, string> = {
-  all: "全部",
-  web: "Web 审计",
-  cloud: "云原生",
-  network: "网络协议",
-  ad: "内网域控",
-  code: "代码审计",
-  dfir: "应急取证",
-}
-
-const TOOL_CATEGORY_LABELS: Record<string, string> = {
-  all: "全部",
-  Recon: "资产测绘",
-  Web: "Web 渗透",
-  Network: "网络扫描",
-  Cloud: "云原生",
-  AD: "域控安全",
-  Crypto: "密码分析",
-  DFIR: "取证分析",
-  OSINT: "开源情报",
-}
-
 export default function FlocksPage({
   initialModule = "home",
   initialTaskId,
@@ -108,6 +85,28 @@ export default function FlocksPage({
   initialModule?: FlocksModuleId
   initialTaskId?: string
 }) {
+  const catalogRequest = usePentestRequest()
+  const [catalogCounts, setCatalogCounts] = useState<{
+    skill: number
+    tool: number
+  } | null>(null)
+  useEffect(() => {
+    let active = true
+    catalogRequest<NativeCatalog>("/api/native-catalog")
+      .then((catalog) => {
+        if (active)
+          setCatalogCounts({
+            skill: catalog.items.filter((item) => item.kind === "skill").length,
+            tool: catalog.items.filter((item) => item.kind === "tool").length,
+          })
+      })
+      .catch(() => {
+        if (active) setCatalogCounts(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [catalogRequest])
   const [activeModule, setActiveModule] =
     useState<FlocksModuleId>(initialModule)
 
@@ -134,9 +133,6 @@ export default function FlocksPage({
   const SettingsIcon = useIcons().settings
 
   const [agentCategory, setAgentCategory] = useState<string>("all")
-  const [toolCategory, setToolCategory] = useState<string>("all")
-  const [toolSearch, setToolSearch] = useState("")
-  const [skillFilter, setSkillFilter] = useState<string>("all")
 
   const t = zhCopy
   const isChatOpen = copilotMode !== "closed"
@@ -181,20 +177,6 @@ export default function FlocksPage({
     return FLOCKS_AGENTS.filter((a) => a.category === agentCategory)
   }, [agentCategory])
 
-  const filteredTools = useMemo(() => {
-    return FLOCKS_TOOLS.filter((tool) => {
-      const matchesCat =
-        toolCategory === "all" || tool.category === toolCategory
-      const q = toolSearch.trim().toLowerCase()
-      const matchesQuery =
-        !q ||
-        tool.name.toLowerCase().includes(q) ||
-        tool.description.toLowerCase().includes(q) ||
-        tool.runtime.toLowerCase().includes(q)
-      return matchesCat && matchesQuery
-    })
-  }, [toolCategory, toolSearch])
-
   const commandResults = useMemo(() => {
     const q = commandQuery.trim().toLowerCase()
     const navMatches = FLOCKS_NAV_ITEMS.filter(
@@ -209,18 +191,13 @@ export default function FlocksPage({
         (a.name.toLowerCase().includes(q) ||
           a.role.zh.toLowerCase().includes(q))
     ).slice(0, 5)
-    const toolMatches = FLOCKS_TOOLS.filter(
-      (tl) =>
-        q &&
-        (tl.name.toLowerCase().includes(q) ||
-          tl.category.toLowerCase().includes(q))
-    ).slice(0, 6)
-    return { navMatches, agentMatches, toolMatches }
+    return { navMatches, agentMatches }
   }, [commandQuery, t.nav])
 
   return (
     <SidebarProvider>
       <AppSidebar
+        catalogCounts={catalogCounts}
         activeModule={activeModule}
         onSelectModule={handleSelectModule}
         onOpenCommandPalette={() => setCommandOpen(true)}
@@ -463,7 +440,11 @@ export default function FlocksPage({
                                 fontVariationSettings: fontWeights.bold,
                               }}
                             >
-                              {card.value}
+                              {card.labelKey === "skills"
+                                ? (catalogCounts?.skill ?? "未读取")
+                                : card.labelKey === "tools"
+                                  ? (catalogCounts?.tool ?? "未读取")
+                                  : card.value}
                             </p>
                             {card.subtextKey && (
                               <p
@@ -618,121 +599,7 @@ export default function FlocksPage({
 
               {/* 4. 工具武库视图 [149] */}
               {activeModule === "tools" && (
-                <div className="space-y-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h1
-                        className={cn(typeClass("title"), "text-foreground")}
-                        style={{ fontVariationSettings: fontWeights.semibold }}
-                      >
-                        {t.nav.tools} ({FLOCKS_TOOLS.length})
-                      </h1>
-                      <p
-                        className={cn(
-                          typeClass("caption"),
-                          "text-muted-foreground"
-                        )}
-                      >
-                        149 个沙箱化渗透测试与取证工具
-                      </p>
-                    </div>
-                    <input
-                      type="search"
-                      value={toolSearch}
-                      onChange={(e) => setToolSearch(e.target.value)}
-                      placeholder="筛选 149 个工具名称或协议..."
-                      className={cn(
-                        typeClass("caption"),
-                        "h-8 w-64 rounded-lg border border-border bg-background px-3 text-foreground outline-none focus:ring-1 focus:ring-blue-500"
-                      )}
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5">
-                    {(
-                      [
-                        "all",
-                        "Recon",
-                        "Web",
-                        "Network",
-                        "Cloud",
-                        "AD",
-                        "Crypto",
-                        "DFIR",
-                        "OSINT",
-                      ] as const
-                    ).map((cat) => (
-                      <Button
-                        key={cat}
-                        size="sm"
-                        variant={toolCategory === cat ? "primary" : "secondary"}
-                        onClick={() => setToolCategory(cat)}
-                      >
-                        {TOOL_CATEGORY_LABELS[cat]}
-                      </Button>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {filteredTools.map((tool: FlocksTool) => (
-                      <div
-                        key={tool.id}
-                        className="flex flex-col justify-between rounded-xl border border-border/70 bg-card p-4 shadow-2xs"
-                      >
-                        <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-mono text-sm font-semibold text-foreground">
-                              {tool.name}
-                            </span>
-                            <Badge
-                              size="sm"
-                              variant="dot"
-                              color={
-                                tool.riskLevel === "high"
-                                  ? "red"
-                                  : tool.riskLevel === "medium"
-                                    ? "orange"
-                                    : "green"
-                              }
-                            >
-                              {tool.status}
-                            </Badge>
-                          </div>
-                          <p
-                            className={cn(
-                              typeClass("caption"),
-                              "mt-1.5 text-muted-foreground"
-                            )}
-                          >
-                            {tool.description}
-                          </p>
-                        </div>
-                        <div
-                          className={cn(
-                            typeClass("micro"),
-                            "mt-3 flex items-center justify-between border-t border-border/50 pt-2.5 text-muted-foreground"
-                          )}
-                        >
-                          <span>
-                            {TOOL_CATEGORY_LABELS[tool.category]} ·{" "}
-                            {tool.runtime.toUpperCase()}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              launchInCopilot(
-                                `在隔离沙箱中运行工具 ${tool.name} (${tool.runtime})`
-                              )
-                            }
-                            className="cursor-pointer font-medium text-blue-500 hover:underline"
-                          >
-                            {t.common.launch} →
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <NativeCatalogPanel key="tools" kind="tool" />
               )}
 
               {/* 5. 自动化编排视图 [4] */}
@@ -817,72 +684,8 @@ export default function FlocksPage({
                 </div>
               )}
 
-              {/* 6. 战术技能包视图 [15] */}
               {activeModule === "skills" && (
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h1
-                      className={cn(typeClass("title"), "text-foreground")}
-                      style={{ fontVariationSettings: fontWeights.semibold }}
-                    >
-                      {t.nav.skills} ({FLOCKS_SKILLS.length})
-                    </h1>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(
-                        [
-                          "all",
-                          "web",
-                          "cloud",
-                          "network",
-                          "ad",
-                          "code",
-                          "dfir",
-                        ] as const
-                      ).map((dom) => (
-                        <Button
-                          key={dom}
-                          size="sm"
-                          variant={
-                            skillFilter === dom ? "primary" : "secondary"
-                          }
-                          onClick={() => setSkillFilter(dom)}
-                        >
-                          {SKILL_DOMAIN_LABELS[dom]}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {FLOCKS_SKILLS.filter(
-                      (s) => skillFilter === "all" || s.domain === skillFilter
-                    ).map((sk) => (
-                      <div
-                        key={sk.id}
-                        className="rounded-xl border border-border/75 bg-card p-4 shadow-2xs"
-                      >
-                        <div className="flex items-center justify-between">
-                          <Badge size="sm" variant="solid" color="blue">
-                            {SKILL_DOMAIN_LABELS[sk.domain]}
-                          </Badge>
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {sk.version}
-                          </span>
-                        </div>
-                        <h3 className="mt-2 font-mono text-sm font-semibold text-foreground">
-                          {sk.name}
-                        </h3>
-                        <p
-                          className={cn(
-                            typeClass("caption"),
-                            "mt-1 text-muted-foreground"
-                          )}
-                        >
-                          {sk.title.zh}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <NativeCatalogPanel key="skills" kind="skill" />
               )}
 
               {/* Pentests：持久任务列表、创建与真实执行详情 */}
@@ -1054,37 +857,6 @@ export default function FlocksPage({
                       {ag.name}
                     </span>
                     <span className="text-muted-foreground">{ag.role.zh}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {commandResults.toolMatches.length > 0 && (
-              <div>
-                <p
-                  className="px-2 pb-1 text-muted-foreground"
-                  style={{ fontVariationSettings: fontWeights.semibold }}
-                >
-                  沙箱工具
-                </p>
-                {commandResults.toolMatches.map((tl) => (
-                  <button
-                    key={tl.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveModule("tools")
-                      setToolSearch(tl.name)
-                      setCommandOpen(false)
-                    }}
-                    className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-muted"
-                  >
-                    <span className="font-mono font-medium text-foreground">
-                      <Terminal size={13} className="mr-1.5 inline" />
-                      {tl.name}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {TOOL_CATEGORY_LABELS[tl.category]} · {tl.runtime}
-                    </span>
                   </button>
                 ))}
               </div>

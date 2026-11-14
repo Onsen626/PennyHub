@@ -10,6 +10,8 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     ".next-platform-test/**",
+    ".next-native-catalog-test/**",
+    ".next-native-catalog-build/**",
     ".pennyagent/**",
     "third_party/strix/**",
     "out/**",

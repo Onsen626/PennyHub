@@ -65,12 +65,14 @@ export const FLOCKS_ICON_MAP: Record<FlocksIconKey, IconComponent> = {
 const SECTION_ORDER: FlocksSectionId[] = ["home", "workbench", "smith"];
 
 export interface AppSidebarProps extends Omit<SidebarProps, "children"> {
+  catalogCounts?: {skill: number; tool: number} | null;
   activeModule?: FlocksModuleId;
   onSelectModule?: (id: FlocksModuleId) => void;
   onOpenCommandPalette?: () => void;
 }
 
 export function AppSidebar({
+  catalogCounts,
   activeModule: controlledModule,
   onSelectModule,
   onOpenCommandPalette,
@@ -131,6 +133,7 @@ export function AppSidebar({
               </SidebarGroupLabel>
               <SidebarMenu>
                 {items.map((item) => {
+                  const count = item.id === "skills" ? catalogCounts?.skill : item.id === "tools" ? catalogCounts?.tool : item.count;
                   const IconComp = FLOCKS_ICON_MAP[item.icon];
                   const isSelected = activeModule === item.id;
                   return (
@@ -143,7 +146,7 @@ export function AppSidebar({
                         <span className="truncate [text-box:trim-both_cap_alphabetic] py-1 -my-1">
                           {t.nav[item.id]}
                         </span>
-                        {item.count !== undefined && item.id !== "models" && (
+                        {count !== undefined && item.id !== "models" && (
                           <span className="ml-auto inline-flex items-center">
                             <Badge
                               size="sm"
@@ -151,7 +154,7 @@ export function AppSidebar({
                               color={isSelected ? "blue" : "gray"}
                               className="tabular-nums"
                             >
-                              {item.count}
+                              {count}
                             </Badge>
                           </span>
                         )}
