@@ -1,0 +1,23 @@
+{
+  "baseline": "1ceeb6b8b2e9454c45b85e11373f9fef423f0e77",
+  "testedFeatureCommit": "463dc1f988d776431c6a04a439877f8c5b81fd07",
+  "patchSha256": "d2936fe0b456d58db20d02002eb3aa7627eccd9b939c8d87e896433e65f374d0",
+  "restoredSourceFiles": 26,
+  "commands": [
+    {
+      "command": "sh docs/verification/issue-45/rollback.sh --check",
+      "cwd": "/var/folders/t1/bgbq7gz57jgcq4fkc603y0f00000gn/T/penny-issue45-rollback-qsgynw6i",
+      "exitStatus": 0,
+      "stdout": "代码回退检查通过。\n",
+      "stderr": ""
+    },
+    {
+      "command": "sh docs/verification/issue-45/rollback.sh --apply",
+      "cwd": "/var/folders/t1/bgbq7gz57jgcq4fkc603y0f00000gn/T/penny-issue45-rollback-qsgynw6i",
+      "exitStatus": 0,
+      "stdout": "代码已回退，持久化任务数据保持原状。\n",
+      "stderr": ""
+    }
+  ],
+  "scope": "Source rollback only; no scans, containers, services or persistent task data touched."
+}
