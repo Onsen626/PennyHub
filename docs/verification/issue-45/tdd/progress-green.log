@@ -1,0 +1,15 @@
+✔ confirmed start establishes an execution identity without assigning the platform PID to the worker (0.71375ms)
+✔ only the current execution can publish its worker identity and enter running (0.236042ms)
+✔ stop requests enter stopping idempotently and reject late running events (0.104292ms)
+✔ stopped requires both process group exit and sandbox cleanup confirmation (0.119291ms)
+✔ completion requires a durable final result and failures and interruptions preserve identity (0.090667ms)
+✔ cleanup observations preserve lifecycle status and increment the public revision (0.063542ms)
+✔ execution progress updates its revision without changing status or assigning worker identity during preparation (0.067708ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 277.809375

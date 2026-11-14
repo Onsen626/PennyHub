@@ -1,0 +1,33 @@
+✖ failed launch persistence retains spawned identity and blocks cleanup until group exit is confirmed (8505.254291ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8553.465375
+
+✖ failing tests:
+
+test at tests/pentest-stop.test.mjs:526:1
+✖ failed launch persistence retains spawned identity and blocks cleanup until group exit is confirmed (8505.254291ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'preparing'
+  - 'failed'
+  
+      at TestContext.<anonymous> (file:///Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/tests/pentest-stop.test.mjs:536:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'preparing',
+    expected: 'failed',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+EXIT_STATUS=1

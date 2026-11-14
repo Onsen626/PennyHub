@@ -1,0 +1,3212 @@
+diff --git a/app/api/pentests/[taskId]/start/route.ts b/app/api/pentests/[taskId]/start/route.ts
+index 8ef670a..9073859 100644
+--- a/app/api/pentests/[taskId]/start/route.ts
++++ b/app/api/pentests/[taskId]/start/route.ts
+@@ -1,4 +1,5 @@
+ import { NextResponse } from "next/server"
++import { PentestTransitionError } from "@/lib/pentest-lifecycle"
+ import {
+   apiError,
+   jsonObject,
+@@ -21,6 +22,8 @@ export async function POST(
+       { status: 202, headers: { "Cache-Control": "no-store" } }
+     )
+   } catch (error) {
++    if (error instanceof PentestTransitionError)
++      return apiError(error.code, error.message, 409)
+     if (error instanceof PentestStartError)
+       return apiError(error.code, error.message, error.status)
+     return apiError("START_FAILED", "启动测试失败，请检查源码和运行环境。", 500)
+diff --git a/app/api/pentests/[taskId]/stop/route.ts b/app/api/pentests/[taskId]/stop/route.ts
+index 6ff8cdc..49aa321 100644
+--- a/app/api/pentests/[taskId]/stop/route.ts
++++ b/app/api/pentests/[taskId]/stop/route.ts
+@@ -1,5 +1,10 @@
+ import { NextResponse } from "next/server"
+-import { apiError, jsonObject, requireSession } from "@/lib/server/platform-http"
++import { PentestTransitionError } from "@/lib/pentest-lifecycle"
++import {
++  apiError,
++  jsonObject,
++  requireSession,
++} from "@/lib/server/platform-http"
+ import { PentestStartError, stopPentest } from "@/lib/server/pentest-runtime"
+ 
+ export async function POST(
+@@ -18,6 +23,8 @@ export async function POST(
+       { headers: { "Cache-Control": "no-store" } }
+     )
+   } catch (error) {
++    if (error instanceof PentestTransitionError)
++      return apiError(error.code, error.message, 409)
+     if (error instanceof PentestStartError)
+       return apiError(error.code, error.message, error.status)
+     return apiError("STOP_FAILED", "结束后台测试失败，请稍后重试。", 500)
+diff --git a/components/platform/pentest-details.tsx b/components/platform/pentest-details.tsx
+index 6247a59..03bcb1a 100644
+--- a/components/platform/pentest-details.tsx
++++ b/components/platform/pentest-details.tsx
+@@ -19,6 +19,7 @@ type Results = {
+   summary: string | null
+   usage?: Record<string, unknown>
+   independentlyVerified: boolean
++  final?: boolean
+ }
+ type Event = {
+   at?: string
+@@ -47,6 +48,7 @@ export function PentestDetails({
+   const pentestRequest = usePentestRequest()
+   const [task, setTask] = useState<PentestTask | null>(null)
+   const [results, setResults] = useState<Results | null>(null)
++  const [resultError, setResultError] = useState("")
+   const [artifacts, setArtifacts] = useState<Artifact[]>([])
+   const [tab, setTab] = useState<Tab>("Overview")
+   const [error, setError] = useState("")
+@@ -59,8 +61,15 @@ export function PentestDetails({
+   const [reloadKey, setReloadKey] = useState(0)
+   const stopPending = useRef(false)
+   const generation = useRef(0)
++  const latestRevision = useRef(-1)
+   const [cursor, setCursor] = useState(0)
+   const base = `/api/pentests/${encodeURIComponent(id)}`
++  const cleanupRetry =
++    task &&
++    ["completed", "failed", "interrupted"].includes(task.status) &&
++    task.runtime?.cleanup &&
++    (!task.runtime.cleanup.processGroupExited ||
++      !task.runtime.cleanup.sandboxCleared)
+ 
+   useEffect(() => {
+     let active = true
+@@ -72,20 +81,37 @@ export function PentestDetails({
+           pentestRequest<{ task: PentestTask }>(base),
+           pentestRequest<{ available: boolean; results: Results | null }>(
+             `${base}/results`
+-          ),
++          )
++            .then((value) => ({ ...value, error: "" }))
++            .catch((failure) => ({
++              available: false,
++              results: null,
++              error:
++                failure instanceof Error
++                  ? failure.message
++                  : "读取测试结果失败。",
++            })),
+           pentestRequest<{ artifacts: Artifact[] }>(`${base}/artifacts`),
+         ])
+         // A response is stale when the component unmounted, a stop is in
+         // flight, or a newer request superseded the one that started this poll.
+         if (!active || stopPending.current) return
+         if (requestGeneration !== generation.current) return
++        const revision = detail.task.runtime?.revision ?? 0
++        if (revision < latestRevision.current) {
++          timer = setTimeout(() => void load(), 1500)
++          return
++        }
++        latestRevision.current = revision
+         setTask(detail.task)
+         setResults(output.available ? output.results : null)
++        setResultError(output.error)
+         setArtifacts(files.artifacts)
+         setError("")
+         if (
+-          ["preparing", "running"].includes(detail.task.status) ||
+-          (detail.task.status === "completed" && !output.results?.summary)
++          ["preparing", "running", "stopping"].includes(detail.task.status) ||
++          output.error ||
++          (detail.task.status === "completed" && output.results?.final !== true)
+         )
+           timer = setTimeout(() => void load(), 1500)
+       } catch (failure) {
+@@ -143,25 +169,43 @@ export function PentestDetails({
+     }
+   }
+   async function stopTask() {
+-    if (!task || !window.confirm("确认结束当前 Pentest 吗？")) return
++    if (
++      !task ||
++      !window.confirm(
++        cleanupRetry ? "确认重试资源清理吗？" : "确认结束当前 Pentest 吗？"
++      )
++    )
++      return
+     generation.current += 1
+     stopPending.current = true
+     setStopping(true)
++    setTask((previous) =>
++      previous && ["preparing", "running"].includes(previous.status)
++        ? { ...previous, status: "stopping" }
++        : previous
++    )
+     setError("")
+     try {
+       const output = await pentestRequest<{ runtime: PentestTask["runtime"] }>(
+         `${base}/stop`,
+         { method: "POST" }
+       )
+-      setTask((previous) =>
+-        previous && output.runtime
+-          ? {
+-              ...previous,
+-              status: output.runtime.status,
+-              runtime: output.runtime,
+-            }
+-          : previous
+-      )
++      if (
++        output.runtime &&
++        (output.runtime.revision ?? 0) >= latestRevision.current
++      ) {
++        latestRevision.current = output.runtime.revision ?? 0
++        setTask((previous) =>
++          previous && output.runtime
++            ? {
++                ...previous,
++                status: output.runtime.status,
++                runtime: output.runtime,
++              }
++            : previous
++        )
++      }
++      setReloadKey((value) => value + 1)
+     } catch (failure) {
+       setError(failure instanceof Error ? failure.message : "结束测试失败。")
+       // Resume normal polling so the page recovers when stop could not finish.
+@@ -186,7 +230,8 @@ export function PentestDetails({
+         </div>
+         {task && (
+           <div className="flex shrink-0 items-center gap-3">
+-            {["preparing", "running"].includes(task.status) && (
++            {(["preparing", "running", "stopping"].includes(task.status) ||
++              cleanupRetry) && (
+               <Button
+                 variant="primary"
+                 size="default"
+@@ -195,7 +240,15 @@ export function PentestDetails({
+                 aria-busy={stopping}
+                 onClick={() => void stopTask()}
+               >
+-                {stopping ? "结束中…" : "结束测试"}
++                {stopping
++                  ? cleanupRetry
++                    ? "清理中…"
++                    : "结束中…"
++                  : cleanupRetry
++                    ? "重试清理"
++                    : task.status === "stopping"
++                      ? "重试结束"
++                      : "结束测试"}
+               </Button>
+             )}
+             <span
+@@ -216,6 +269,46 @@ export function PentestDetails({
+         </p>
+       )}
+       {!task && !error && <p role="status">正在读取测试记录…</p>}
++      {task && (
++        <p
++          className="text-sm text-muted-foreground"
++          data-testid="pentest-result-completeness"
++        >
++          {resultError
++            ? "结果读取异常"
++            : !results
++              ? "未产生结果"
++              : results.final === true
++                ? "最终结果"
++                : results.final === false
++                  ? "部分结果"
++                  : "结果完整性未记录"}
++        </p>
++      )}
++      {resultError && (
++        <p role="alert" className="text-sm text-red-600">
++          {resultError}
++        </p>
++      )}
++      {task?.runtime?.cleanup && (
++        <p
++          className="text-sm text-muted-foreground"
++          data-testid="pentest-cleanup"
++        >
++          进程组退出：
++          {task.runtime.cleanup.processGroupExited ? "已确认" : "尚未确认"}
++          ；沙箱清理：
++          {task.runtime.cleanup.sandboxCleared ? "已确认" : "尚未确认"}
++        </p>
++      )}
++      {task?.runtime && !task.runtime.cleanup && (
++        <p className="text-sm text-muted-foreground">资源清理：未记录</p>
++      )}
++      {task?.runtime?.cleanup?.error && (
++        <p role="alert" className="text-sm text-red-600">
++          {task.runtime.cleanup.error}
++        </p>
++      )}
+       {task?.runtime?.error && (
+         <p
+           role="alert"
+@@ -253,6 +346,12 @@ export function PentestDetails({
+                   ["Targets", task.targets.join(", ")],
+                   ["Scan mode", task.scanMode],
+                   ["Phase", task.runtime?.phase],
++                  ["Execution ID", task.runtime?.executionId],
++                  ["Revision", task.runtime?.revision?.toString()],
++                  ["Owner PID", task.runtime?.ownerPid?.toString()],
++                  ["Worker PID", task.runtime?.workerPid?.toString()],
++                  ["Process group", task.runtime?.workerPgid?.toString()],
++                  ["Sandbox ID", task.runtime?.sandboxId],
+                   ["Created", task.createdAt],
+                   ["Started", task.runtime?.startedAt],
+                   ["Ended", task.runtime?.endedAt],
+diff --git a/components/platform/pentests-panel.tsx b/components/platform/pentests-panel.tsx
+index acb384d..f91273e 100644
+--- a/components/platform/pentests-panel.tsx
++++ b/components/platform/pentests-panel.tsx
+@@ -28,7 +28,15 @@ export function PentestsPanel({ initialTaskId }: { initialTaskId?: string }) {
+     pentestRequest<{ tasks: PentestTask[] }>("/api/pentests")
+       .then((result) => {
+         if (active) {
+-          setTasks(result.tasks)
++          setTasks((previous) =>
++            result.tasks.map((task) => {
++              const current = previous.find((item) => item.id === task.id)
++              return current &&
++                (current.runtime?.revision ?? 0) > (task.runtime?.revision ?? 0)
++                ? current
++                : task
++            })
++          )
+           setError("")
+           setLoading(false)
+         }
+@@ -110,6 +118,7 @@ export function PentestsPanel({ initialTaskId }: { initialTaskId?: string }) {
+             "draft",
+             "preparing",
+             "running",
++            "stopping",
+             "completed",
+             "stopped",
+             "failed",
+diff --git a/instrumentation.ts b/instrumentation.ts
+new file mode 100644
+index 0000000..0ff520a
+--- /dev/null
++++ b/instrumentation.ts
+@@ -0,0 +1,6 @@
++export async function register() {
++  if (process.env.NEXT_RUNTIME === "nodejs") {
++    const { startPentestManager } = await import("./lib/server/pentest-manager")
++    await startPentestManager()
++  }
++}
+diff --git a/lib/pentest-lifecycle.ts b/lib/pentest-lifecycle.ts
+new file mode 100644
+index 0000000..4fc8e61
+--- /dev/null
++++ b/lib/pentest-lifecycle.ts
+@@ -0,0 +1,162 @@
++export type PentestLifecycleStatus =
++  | "draft"
++  | "preparing"
++  | "running"
++  | "stopping"
++  | "completed"
++  | "stopped"
++  | "failed"
++  | "interrupted"
++
++export type PentestLifecycle = {
++  taskId: string
++  status: PentestLifecycleStatus
++  revision: number
++  executionId: string | null
++  ownerPid: number | null
++  workerPid: number | null
++  workerPgid: number | null
++  sandboxId: string | null
++  updatedAt: string
++  reason: string
++}
++
++type EventDetails = { executionId: string; at: string; reason: string }
++export type PentestLifecycleEvent = EventDetails &
++  (
++    | { type: "START_CONFIRMED"; ownerPid: number }
++    | { type: "STOP_REQUESTED" }
++    | { type: "CLEANUP_RECORDED" }
++    | { type: "EXECUTION_PROGRESS" }
++    | { type: "EXECUTION_COMPLETED"; finalResultPersisted: boolean }
++    | { type: "EXECUTION_FAILED"; workerPid?: number; workerPgid?: number }
++    | { type: "EXECUTION_INTERRUPTED" }
++    | {
++        type: "STOP_CONFIRMED"
++        processGroupExited: boolean
++        sandboxCleared: boolean
++      }
++    | {
++        type: "EXECUTION_STARTED"
++        workerPid: number
++        workerPgid: number
++        sandboxId: string | null
++      }
++  )
++
++export class PentestTransitionError extends Error {
++  constructor(
++    readonly code:
++      | "INVALID_TRANSITION"
++      | "STALE_EXECUTION"
++      | "CLEANUP_UNCONFIRMED"
++      | "FINAL_RESULT_UNCONFIRMED",
++    readonly status: PentestLifecycleStatus,
++    readonly event: string
++  ) {
++    super(`Invalid Pentest transition: ${status} + ${event} (${code})`)
++  }
++}
++
++export function createPentestLifecycle(input: {
++  taskId: string
++  at: string
++}): PentestLifecycle {
++  return {
++    taskId: input.taskId,
++    status: "draft",
++    revision: 0,
++    executionId: null,
++    ownerPid: null,
++    workerPid: null,
++    workerPgid: null,
++    sandboxId: null,
++    updatedAt: input.at,
++    reason: "draft_created",
++  }
++}
++
++export function transitionPentestLifecycle(
++  state: PentestLifecycle,
++  event: PentestLifecycleEvent
++): PentestLifecycle {
++  if (
++    event.type !== "START_CONFIRMED" &&
++    event.executionId !== state.executionId
++  )
++    throw new PentestTransitionError(
++      "STALE_EXECUTION",
++      state.status,
++      event.type
++    )
++  if (state.status === "stopping" && event.type === "STOP_REQUESTED")
++    return state
++  const updated = {
++    ...state,
++    revision: state.revision + 1,
++    updatedAt: event.at,
++    reason: event.reason,
++  }
++  if (
++    event.type === "CLEANUP_RECORDED" &&
++    ["stopping", "completed", "failed", "interrupted", "stopped"].includes(
++      state.status
++    )
++  )
++    return updated
++  if (state.status === "draft" && event.type === "START_CONFIRMED")
++    return {
++      ...updated,
++      status: "preparing",
++      executionId: event.executionId,
++      ownerPid: event.ownerPid,
++    }
++  if (state.status === "preparing" && event.type === "EXECUTION_STARTED")
++    return {
++      ...updated,
++      status: "running",
++      workerPid: event.workerPid,
++      workerPgid: event.workerPgid,
++      sandboxId: event.sandboxId,
++    }
++  if (
++    ["preparing", "running"].includes(state.status) &&
++    event.type === "STOP_REQUESTED"
++  )
++    return { ...updated, status: "stopping" }
++  if (state.status === "stopping" && event.type === "STOP_CONFIRMED") {
++    if (!event.processGroupExited || !event.sandboxCleared)
++      throw new PentestTransitionError(
++        "CLEANUP_UNCONFIRMED",
++        state.status,
++        event.type
++      )
++    return { ...updated, status: "stopped" }
++  }
++  if (["preparing", "running"].includes(state.status)) {
++    if (event.type === "EXECUTION_PROGRESS") return updated
++    if (event.type === "EXECUTION_FAILED")
++      return {
++        ...updated,
++        status: "failed",
++        workerPid: event.workerPid ?? state.workerPid,
++        workerPgid: event.workerPgid ?? state.workerPgid,
++      }
++    if (event.type === "EXECUTION_INTERRUPTED")
++      return { ...updated, status: "interrupted" }
++    if (event.type === "EXECUTION_COMPLETED" && state.status === "running") {
++      if (!event.finalResultPersisted)
++        throw new PentestTransitionError(
++          "FINAL_RESULT_UNCONFIRMED",
++          state.status,
++          event.type
++        )
++      return { ...updated, status: "completed" }
++    }
++  }
++  throw new PentestTransitionError(
++    "INVALID_TRANSITION",
++    state.status,
++    event.type
++  )
++}
+diff --git a/lib/pentests.ts b/lib/pentests.ts
+index 8269e6f..d56c1d5 100644
+--- a/lib/pentests.ts
++++ b/lib/pentests.ts
+@@ -20,6 +20,7 @@ export type PentestTask = {
+     | "draft"
+     | "preparing"
+     | "running"
++    | "stopping"
+     | "completed"
+     | "failed"
+     | "interrupted"
+@@ -45,6 +46,19 @@ export type PentestTask = {
+ 
+ export type PentestRuntime = {
+   status: Exclude<PentestTask["status"], "draft">
++  revision?: number
++  executionId?: string | null
++  ownerPid?: number | null
++  workerPid?: number | null
++  workerPgid?: number | null
++  sandboxId?: string | null
++  reason?: string
++  eventCursor?: number
++  cleanup?: {
++    processGroupExited: boolean
++    sandboxCleared: boolean
++    error?: string
++  }
+   phase: string
+   pid: number | null
+   startedAt: string
+diff --git a/lib/server/pentest-manager.ts b/lib/server/pentest-manager.ts
+new file mode 100644
+index 0000000..495737d
+--- /dev/null
++++ b/lib/server/pentest-manager.ts
+@@ -0,0 +1,441 @@
++import "server-only"
++import { execFileSync } from "node:child_process"
++import { readFile, readdir, unlink } from "node:fs/promises"
++import path from "node:path"
++import type { PentestRuntime } from "@/lib/pentests"
++import {
++  createPentestLifecycle,
++  transitionPentestLifecycle,
++  type PentestLifecycle,
++  type PentestLifecycleEvent,
++} from "@/lib/pentest-lifecycle"
++import { dataDirectory, readRecord, writeRecord } from "./platform-store"
++import { readTaskResults } from "./findings"
++import {
++  processGroupAlive,
++  processAlive,
++  terminateProcessGroup,
++} from "./pentest-process"
++import { confirmStrixSandboxCleanup } from "./strix-sandbox"
++
++const globalManager = globalThis as typeof globalThis & {
++  __pennyPentestManager?: {
++    queues: Map<string, Promise<unknown>>
++    timer?: ReturnType<typeof setInterval>
++    ticking: boolean
++  }
++}
++const manager: NonNullable<typeof globalManager.__pennyPentestManager> =
++  (globalManager.__pennyPentestManager ??= {
++    queues: new Map(),
++    ticking: false,
++  })
++const queues = manager.queues
++export async function serializePentest<T>(
++  id: string,
++  action: () => Promise<T>
++): Promise<T> {
++  const previous = queues.get(id) ?? Promise.resolve()
++  const next = previous.catch(() => {}).then(action)
++  queues.set(id, next)
++  try {
++    return await next
++  } finally {
++    if (queues.get(id) === next) queues.delete(id)
++  }
++}
++export const runtimePath = (id: string) => `pentests/${id}/runtime.json`
++export async function releasePentestSlot(id: string) {
++  const slot = await readRecord<{ taskId: string }>("pentest-active.json")
++  if (slot?.taskId === id)
++    await unlink(path.join(dataDirectory(), "pentest-active.json")).catch(
++      () => {}
++    )
++}
++export async function savePentestTransition(
++  id: string,
++  event: PentestLifecycleEvent,
++  extra: Partial<PentestRuntime> = {}
++) {
++  const runtime = await readRecord<PentestRuntime>(runtimePath(id))
++  const initial = runtime
++    ? ({
++        taskId: id,
++        status: runtime.status,
++        revision: runtime.revision ?? 0,
++        executionId: runtime.executionId ?? null,
++        ownerPid: runtime.ownerPid ?? null,
++        workerPid: runtime.workerPid ?? null,
++        workerPgid: runtime.workerPgid ?? null,
++        sandboxId: runtime.sandboxId ?? null,
++        updatedAt: runtime.updatedAt,
++        reason: runtime.reason ?? "legacy_record",
++      } satisfies PentestLifecycle)
++    : createPentestLifecycle({ taskId: id, at: event.at })
++  const next = transitionPentestLifecycle(initial, event)
++  if (next === initial) return runtime!
++  const saved: PentestRuntime = {
++    ...(runtime ?? {
++      startedAt: event.at,
++      runName: id,
++      pid: null,
++      phase: event.reason,
++    }),
++    ...extra,
++    ...next,
++    status: next.status as PentestRuntime["status"],
++    phase: event.reason,
++    ...(["completed", "stopped", "failed", "interrupted"].includes(next.status)
++      ? { endedAt: runtime?.endedAt ?? event.at }
++      : {}),
++  }
++  await writeRecord(runtimePath(id), saved)
++  return saved
++}
++
++// Inspect the actual process command and group immediately before signaling.
++// The execution token is inherited at spawn, so task/PID reuse is not sufficient.
++export function ownsPentestWorker(runtime: PentestRuntime) {
++  if (
++    !runtime.workerPid ||
++    !runtime.workerPgid ||
++    !runtime.executionId ||
++    runtime.workerPid === process.pid
++  )
++    return false
++  try {
++    const group = execFileSync(
++      "ps",
++      ["-o", "pgid=", "-p", String(runtime.workerPid)],
++      { encoding: "utf8" }
++    ).trim()
++    const command = execFileSync(
++      "ps",
++      ["eww", "-p", String(runtime.workerPid), "-o", "command="],
++      { encoding: "utf8" }
++    )
++    return (
++      Number(group) === runtime.workerPgid &&
++      command.includes(`PENNY_EXECUTION_ID=${runtime.executionId}`)
++    )
++  } catch {
++    return false
++  }
++}
++
++export async function recordPentestCleanup(
++  id: string,
++  runtime: PentestRuntime,
++  cleanup: NonNullable<PentestRuntime["cleanup"]>
++) {
++  if (!runtime.executionId) return runtime
++  return savePentestTransition(
++    id,
++    {
++      type: "CLEANUP_RECORDED",
++      executionId: runtime.executionId,
++      at: new Date().toISOString(),
++      reason:
++        cleanup.processGroupExited && cleanup.sandboxCleared
++          ? "resources_confirmed_clear"
++          : "cleanup_unconfirmed",
++    },
++    { cleanup }
++  )
++}
++
++export async function cleanPentestExecution(
++  id: string,
++  runtime: PentestRuntime,
++  knownUnspawned = false
++) {
++  // Runtime identity survives a failed launch.json write and takes precedence.
++  let launch: {
++    executionId: string
++    workerPid: number
++    workerPgid: number
++  } | null = null
++  if (!runtime.workerPgid) {
++    try {
++      launch = await readRecord(`pentests/${id}/launch.json`)
++    } catch {
++      // Unreadable metadata supplies no evidence of process exit.
++    }
++  }
++  if (
++    !runtime.workerPid &&
++    launch &&
++    launch.executionId === runtime.executionId
++  )
++    runtime = {
++      ...runtime,
++      workerPid: launch.workerPid,
++      workerPgid: launch.workerPgid,
++    }
++  let processGroupExited =
++    knownUnspawned && !runtime.workerPgid && !runtime.pid && !runtime.cleanup
++  let error: string | undefined
++  if (runtime.workerPgid) {
++    if (!processGroupAlive(runtime.workerPgid)) processGroupExited = true
++    else if (ownsPentestWorker(runtime))
++      processGroupExited = await terminateProcessGroup(runtime.workerPgid, {
++        graceMs: 5000,
++        killGraceMs: 2000,
++        pollMs: 100,
++      })
++    else error = "执行归属尚未确认，保留活动任务名额。"
++  } else if (!processGroupExited) {
++    processGroupExited = false
++    error = "后台进程组身份未记录，保留活动任务名额。"
++  }
++  if (!processGroupExited)
++    return {
++      processGroupExited: false,
++      sandboxCleared: false,
++      error: error ?? "进程组退出尚未确认，沙箱资源保持不变。",
++    }
++  const sandbox = await confirmStrixSandboxCleanup(id)
++  const cleanup = {
++    processGroupExited,
++    ...sandbox,
++    error: error ?? sandbox.error,
++  }
++  return cleanup
++}
++
++// Call within serializePentest: all routes share confirmation, persistence and release.
++export async function finishPentestCleanup(
++  id: string,
++  runtime: PentestRuntime,
++  details?: { at: string; reason: string },
++  observed?: NonNullable<PentestRuntime["cleanup"]>
++) {
++  const cleanup = observed ?? (await cleanPentestExecution(id, runtime))
++  const confirmed = cleanup.processGroupExited && cleanup.sandboxCleared
++  const saved =
++    confirmed && runtime.status === "stopping"
++      ? await savePentestTransition(
++          id,
++          {
++            type: "STOP_CONFIRMED",
++            executionId: runtime.executionId!,
++            ...(details ?? {
++              at: new Date().toISOString(),
++              reason: "resources_confirmed_clear",
++            }),
++            ...cleanup,
++          },
++          { cleanup, error: undefined }
++        )
++      : await recordPentestCleanup(id, runtime, cleanup)
++  if (confirmed) await releasePentestSlot(id)
++  return saved
++}
++
++type ExecutionEvent = {
++  executionId: string
++  at: string
++  status: string
++  phase: string
++  error?: string
++  workerPid: number
++  workerPgid: number
++  sandboxId?: string | null
++}
++async function consumePentestEvents(id: string) {
++  let runtime = await readRecord<PentestRuntime>(runtimePath(id))
++  if (!runtime || !["preparing", "running"].includes(runtime.status)) return
++  let lines: string[] = []
++  try {
++    lines = (
++      await readFile(
++        path.join(dataDirectory(), "pentests", id, "execution-events.jsonl"),
++        "utf8"
++      )
++    )
++      .split("\n")
++      .slice(0, -1)
++  } catch (error) {
++    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
++  }
++  for (let cursor = runtime.eventCursor ?? 0; cursor < lines.length; cursor++) {
++    const event: ExecutionEvent = JSON.parse(lines[cursor])
++    if (event.executionId !== runtime.executionId) continue
++    const details = {
++      executionId: event.executionId,
++      at: event.at,
++      reason: event.phase,
++    }
++    if (event.status === "running" && runtime.status === "preparing") {
++      const launch = await readRecord<{
++        executionId: string
++        workerPid: number
++        workerPgid: number
++      }>(`pentests/${id}/launch.json`)
++      if (
++        launch?.executionId !== runtime.executionId ||
++        event.workerPid !== launch.workerPid ||
++        event.workerPgid !== launch.workerPgid
++      )
++        continue
++      runtime = await savePentestTransition(
++        id,
++        {
++          ...details,
++          type: "EXECUTION_STARTED",
++          workerPid: event.workerPid,
++          workerPgid: event.workerPgid,
++          sandboxId: event.sandboxId ?? null,
++        },
++        { eventCursor: cursor + 1 }
++      )
++    } else if (
++      (event.status === "preparing" || event.status === "running") &&
++      event.phase !== runtime.phase
++    ) {
++      runtime = await savePentestTransition(
++        id,
++        { ...details, type: "EXECUTION_PROGRESS" },
++        { eventCursor: cursor + 1 }
++      )
++    } else if (
++      ["completed", "failed", "interrupted", "stopped"].includes(event.status)
++    ) {
++      if (event.status === "stopped") {
++        runtime = await savePentestTransition(id, {
++          ...details,
++          type: "STOP_REQUESTED",
++        })
++        runtime = await finishPentestCleanup(id, runtime, details)
++      } else {
++        let final = false
++        try {
++          final = (await readTaskResults(id))?.final === true
++        } catch {
++          /* invalid snapshot cannot confirm completion */
++        }
++        runtime = await savePentestTransition(
++          id,
++          event.status === "completed" && final
++            ? {
++                ...details,
++                type: "EXECUTION_COMPLETED",
++                finalResultPersisted: true,
++              }
++            : {
++                ...details,
++                type:
++                  event.status === "interrupted"
++                    ? "EXECUTION_INTERRUPTED"
++                    : "EXECUTION_FAILED",
++                reason:
++                  event.status === "completed"
++                    ? "final_result_unconfirmed"
++                    : event.phase,
++              },
++          {
++            error:
++              event.status === "completed" && !final
++                ? "最终结果尚未成功保存。"
++                : event.error,
++            eventCursor: cursor + 1,
++          }
++        )
++      }
++      if (event.status !== "stopped") await finishPentestCleanup(id, runtime)
++
++      return
++    }
++  }
++}
++
++export async function reconcilePentestExecution(id: string, startup = false) {
++  return serializePentest(id, async () => {
++    await consumePentestEvents(id)
++    const runtime = await readRecord<PentestRuntime>(runtimePath(id))
++    if (!runtime) return
++    const launch = runtime.workerPgid
++      ? null
++      : await readRecord<{
++          executionId: string
++          workerPid: number
++          workerPgid: number
++        }>(`pentests/${id}/launch.json`)
++    const workerPid =
++      runtime.workerPid ??
++      (launch && launch.executionId === runtime.executionId
++        ? launch.workerPid
++        : null)
++    const identity = {
++      ...runtime,
++      workerPid,
++      workerPgid: runtime.workerPgid ?? launch?.workerPgid,
++    }
++    if (runtime.status === "stopping" && startup && runtime.executionId) {
++      await finishPentestCleanup(id, runtime, {
++        at: new Date().toISOString(),
++        reason: "startup_stop_confirmed",
++      })
++    } else if (
++      ["preparing", "running"].includes(runtime.status) &&
++      (!workerPid ||
++        !processAlive(workerPid) ||
++        (startup && !ownsPentestWorker(identity)))
++    ) {
++      if (runtime.ownerPid === process.pid && !workerPid) return
++      if (runtime.executionId) {
++        const next = await savePentestTransition(id, {
++          type: "EXECUTION_INTERRUPTED",
++          executionId: runtime.executionId,
++          at: new Date().toISOString(),
++          reason: "startup_execution_missing",
++        })
++        await finishPentestCleanup(id, next)
++      } else {
++        await writeRecord(runtimePath(id), {
++          ...runtime,
++          status: "interrupted",
++          revision: (runtime.revision ?? 0) + 1,
++          reason: "legacy_identity_not_recorded",
++          error: "旧记录未记录执行身份与清理信息。",
++          updatedAt: new Date().toISOString(),
++        })
++      }
++    } else if (
++      ["completed", "failed", "interrupted"].includes(runtime.status) &&
++      (startup || !runtime.cleanup) &&
++      (!runtime.cleanup?.sandboxCleared || !runtime.cleanup?.processGroupExited)
++    ) {
++      await finishPentestCleanup(id, runtime)
++    }
++  })
++}
++export async function startPentestManager() {
++  if (manager.timer) return
++  const tick = async (startup = false) => {
++    if (manager.ticking) return
++    manager.ticking = true
++    try {
++      let ids: string[]
++      try {
++        ids = await readdir(path.join(dataDirectory(), "pentests"))
++      } catch {
++        return
++      }
++      await Promise.all(
++        ids
++          .filter((id) => /^[a-f0-9-]{36}$/.test(id))
++          .map((id) =>
++            reconcilePentestExecution(id, startup).catch((error) =>
++              console.error("Pentest reconciliation failed", id, error)
++            )
++          )
++      )
++    } finally {
++      manager.ticking = false
++    }
++  }
++  await tick(true)
++  manager.timer = setInterval(() => void tick(), 200)
++  manager.timer.unref()
++}
+diff --git a/lib/server/pentest-runtime.ts b/lib/server/pentest-runtime.ts
+index d892efb..02265a6 100644
+--- a/lib/server/pentest-runtime.ts
++++ b/lib/server/pentest-runtime.ts
+@@ -1,17 +1,9 @@
+ import "server-only"
+-import type { ChildProcess } from "node:child_process"
+-import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises"
++import { randomUUID } from "node:crypto"
++import { access, mkdir, writeFile } from "node:fs/promises"
+ import path from "node:path"
+-import type { PentestRuntime } from "@/lib/pentests"
+ import { spawnWorkerProcess } from "./controlled-spawn"
+ import { readModelConfig } from "./model-config"
+-import {
+-  terminateProcessGroup,
+-  workerSignalPid,
+-  processAlive,
+-  isZombieProcess,
+-  type StopLimits,
+-} from "./pentest-process"
+ import {
+   dataDirectory,
+   decryptSecret,
+@@ -20,8 +12,15 @@ import {
+ } from "./platform-store"
+ import { readPentest } from "./pentests"
+ import { pickStrixRuntime, type InstalledStrixRuntime } from "./strix-runtime"
+-import { reapStrixSandbox } from "./strix-sandbox"
+-
++import {
++  serializePentest,
++  savePentestTransition,
++  finishPentestCleanup,
++  cleanPentestExecution,
++  runtimePath,
++} from "./pentest-manager"
++import type { PentestRuntime } from "@/lib/pentests"
++import { readFile } from "node:fs/promises"
+ export class PentestStartError extends Error {
+   constructor(
+     public code: string,
+@@ -31,126 +30,18 @@ export class PentestStartError extends Error {
+     super(message)
+   }
+ }
+-type Slot = { taskId: string; ownerPid: number; pid?: number }
+ const slotPath = () => path.join(dataDirectory(), "pentest-active.json")
+-const STOP_LIMITS: StopLimits = {
+-  graceMs: 5000,
+-  killGraceMs: 2000,
+-  pollMs: 100,
+-}
+-
+-function stopMarkerPath(id: string) {
+-  return path.join(dataDirectory(), "pentests", id, "stop.requested")
+-}
+-
+-async function requestStop(id: string) {
+-  const marker = stopMarkerPath(id)
+-  await mkdir(path.dirname(marker), { recursive: true, mode: 0o700 })
+-  await writeFile(marker, new Date().toISOString(), { mode: 0o600 })
+-}
+-
++const stopMarker = (id: string) =>
++  path.join(dataDirectory(), "pentests", id, "stop.requested")
+ async function stopRequested(id: string) {
+   try {
+-    await access(stopMarkerPath(id))
++    await access(stopMarker(id))
+     return true
+   } catch {
+     return false
+   }
+ }
+ 
+-function stoppedRuntime(
+-  runtime: PentestRuntime | undefined,
+-  task: { id: string; createdAt: string },
+-  endedAt: string
+-): PentestRuntime {
+-  return {
+-    ...(runtime ?? {
+-      status: "preparing",
+-      phase: "runtime_check",
+-      pid: null,
+-      startedAt: task.createdAt,
+-      updatedAt: endedAt,
+-      runName: task.id,
+-    }),
+-    status: "stopped",
+-    phase: "stopped_by_user",
+-    endedAt,
+-    updatedAt: endedAt,
+-    error: "用户结束了当前测试。",
+-  }
+-}
+-
+-async function releaseSlot(id: string) {
+-  const slot = await readRecord<Slot>("pentest-active.json")
+-  if (slot?.taskId === id) await unlink(slotPath()).catch(() => {})
+-}
+-
+-async function stopLaunch(
+-  id: string,
+-  task: { id: string; createdAt: string },
+-  runtime: PentestRuntime
+-): Promise<never> {
+-  const pid = workerSignalPid(runtime.pid, process.pid)
+-  if (pid && !(await terminateProcessGroup(pid, STOP_LIMITS))) {
+-    throw new PentestStartError(
+-      "STOP_FAILED",
+-      "无法终止后台测试进程，请稍后重试。",
+-      500
+-    )
+-  }
+-  await writeRecord(
+-    `pentests/${id}/runtime.json`,
+-    stoppedRuntime(runtime, task, new Date().toISOString())
+-  )
+-  await releaseSlot(id)
+-  await reapStrixSandbox(id)
+-  throw new PentestStartError("STOPPED", "该测试已被结束，无法继续启动。", 409)
+-}
+-
+-async function acquireSlot(id: string) {
+-  const active = await readRecord<Slot>("pentest-active.json")
+-  if (active) {
+-    const runtime = await readRecord<PentestRuntime>(
+-      `pentests/${active.taskId}/runtime.json`
+-    )
+-    const terminal =
+-      runtime &&
+-      ["completed", "failed", "stopped", "interrupted"].includes(runtime.status)
+-    const ownerPid = active.pid || runtime?.pid || active.ownerPid
+-    // A zombie is alive to kill(pid, 0) but can never run the scan; do not let
+-    // a failed stop leave the active slot locked forever.
+-    const busy = processAlive(ownerPid) && !isZombieProcess(ownerPid)
+-    if (!terminal && busy)
+-      throw new PentestStartError(
+-        "TASK_BUSY",
+-        "已有一项测试正在执行，请等待该任务结束。",
+-        409
+-      )
+-    if (runtime && !terminal) {
+-      const terminalAt = new Date().toISOString()
+-      await writeRecord(`pentests/${active.taskId}/runtime.json`, {
+-        ...runtime,
+-        status: "interrupted",
+-        phase: "process_exited",
+-        endedAt: terminalAt,
+-        updatedAt: terminalAt,
+-      })
+-    }
+-    await releaseSlot(active.taskId)
+-  }
+-  try {
+-    await writeFile(
+-      slotPath(),
+-      JSON.stringify({ taskId: id, ownerPid: process.pid }),
+-      { flag: "wx", mode: 0o600 }
+-    )
+-  } catch (error) {
+-    if ((error as NodeJS.ErrnoException).code === "EEXIST")
+-      throw new PentestStartError("TASK_BUSY", "已有测试正在准备或执行。", 409)
+-    throw error
+-  }
+-}
+-
+ export async function startPentest(
+   id: string,
+   options: Record<string, unknown>
+@@ -221,159 +112,209 @@ export async function startPentest(
+     )
+   }
+   await mkdir(dataDirectory(), { recursive: true, mode: 0o700 })
+-  await acquireSlot(id)
+-  const directory = path.join(dataDirectory(), "pentests", id)
+-  let runtime: PentestRuntime = {
+-    status: "preparing",
+-    phase: "runtime_check",
+-    pid: process.pid,
+-    startedAt: new Date().toISOString(),
+-    updatedAt: new Date().toISOString(),
+-    runName: id,
+-  }
+-  let spawned: ChildProcess | null = null
+-  try {
+-    await writeRecord(`pentests/${id}/runtime.json`, runtime)
+-    const privateAccess = await readRecord<{ encrypted: string }>(
+-      `pentests/${id}/access.json`
+-    )
+-    const credentials = privateAccess
+-      ? JSON.parse(await decryptSecret(privateAccess.encrypted))
+-      : null
+-    await mkdir(path.join(directory, "work"), { recursive: true, mode: 0o700 })
+-    const environment = { ...process.env }
+-    // HTTPX initializes ALL_PROXY even with explicit HTTP(S) proxy settings.
+-    // Preserve the HTTP route without initializing the unused SOCKS transport.
+-    if (
+-      (environment.http_proxy || environment.HTTP_PROXY) &&
+-      (environment.https_proxy || environment.HTTPS_PROXY)
+-    ) {
+-      for (const key of ["all_proxy", "ALL_PROXY"]) {
+-        if (/^socks[45]h?:\/\//i.test(environment[key] || ""))
+-          delete environment[key]
+-      }
++  return serializePentest(id, async () => {
++    const current = await readPentest(id)
++    if (current?.status !== "draft")
++      throw new PentestStartError(
++        "ALREADY_STARTED",
++        "该测试已有执行记录。",
++        409
++      )
++    try {
++      await writeFile(
++        slotPath(),
++        JSON.stringify({ taskId: id, ownerPid: process.pid }),
++        { flag: "wx", mode: 0o600 }
++      )
++    } catch (error) {
++      if ((error as NodeJS.ErrnoException).code === "EEXIST")
++        throw new PentestStartError(
++          "TASK_BUSY",
++          "已有测试正在准备、执行或等待清理。",
++          409
++        )
++      throw error
+     }
+-    const child = spawnWorkerProcess(executable, [bridge], {
+-      cwd: path.join(directory, "work"),
+-      env: {
+-        ...environment,
+-        PYTHONPATH: sourcePath,
+-        PYTHONUNBUFFERED: "1",
+-        STRIX_LLM: model.model.includes("/")
+-          ? model.model
+-          : `openai/${model.model}`,
+-        LLM_API_BASE: model.baseUrl,
+-        LLM_API_KEY: model.apiKey,
+-        STRIX_TELEMETRY: "false",
+-        OPENAI_AGENTS_DISABLE_TRACING: "1",
+-      },
+-      runId: id,
+-    })
+-    spawned = child
+-    await new Promise<void>((resolve, reject) => {
+-      child.once("spawn", resolve)
+-      child.once("error", reject)
+-    })
+-    runtime = { ...runtime, phase: "worker_starting", pid: child.pid! }
+-    // A stop that landed between spawn and this write must not be undone by a
+-    // transient `preparing` snapshot.
+-    if (await stopRequested(id)) await stopLaunch(id, task, runtime)
+-    await writeRecord(`pentests/${id}/runtime.json`, runtime)
+-    await writeRecord("pentest-active.json", {
+-      taskId: id,
++    const executionId = randomUUID()
++    const at = new Date().toISOString()
++    const directory = path.join(dataDirectory(), "pentests", id)
++    let runtime = await savePentestTransition(id, {
++      type: "START_CONFIRMED",
++      executionId,
+       ownerPid: process.pid,
+-      pid: child.pid,
++      at,
++      reason: "runtime_check",
+     })
+-    if (await stopRequested(id)) {
+-      // A stop request arrived while the worker was being prepared.
+-      await stopLaunch(id, task, runtime)
+-    }
+-    await new Promise<void>((resolve, reject) => {
+-      child.stdin!.on("error", reject)
+-      child.stdin!.end(
+-        JSON.stringify({
+-          directory,
+-          task,
+-          sourcePath,
+-          slot: slotPath(),
+-          credentials,
+-          maxTurns,
+-        }),
+-        () => resolve()
++    let spawned: ReturnType<typeof spawnWorkerProcess> | null = null
++    async function abortLaunch(): Promise<never> {
++      runtime = await savePentestTransition(id, {
++        type: "STOP_REQUESTED",
++        executionId,
++        at: new Date().toISOString(),
++        reason: "operator_stop",
++      })
++      runtime = await finishPentestCleanup(
++        id,
++        runtime,
++        undefined,
++        await cleanPentestExecution(id, runtime, !spawned)
+       )
+-    })
+-    // Close the race where a stop lands between the first check and the brief
+-    // handoff: never let a stopped task report a successful launch.
+-    if (await stopRequested(id)) await stopLaunch(id, task, runtime)
+-    child.unref()
+-    return runtime
+-  } catch (error) {
+-    // The stop path already terminated the worker and persisted its own state.
+-    if (error instanceof PentestStartError) throw error
+-    let terminated = true
+-    if (spawned && spawned.exitCode === null) {
+-      spawned.stdin?.destroy()
+-      terminated = spawned.pid
+-        ? await terminateProcessGroup(spawned.pid, STOP_LIMITS)
+-        : (spawned.kill("SIGTERM"), true)
+-      spawned.unref()
++      throw new PentestStartError("STOPPED", "该测试已接受结束请求。", 409)
+     }
+-    if (!terminated)
+-      throw new PentestStartError(
+-        "STOP_FAILED",
+-        "无法终止后台测试进程，请稍后重试。",
+-        500
+-      )
+-    const terminalAt = new Date().toISOString()
+-    if (await stopRequested(id)) {
+-      await writeRecord(
+-        `pentests/${id}/runtime.json`,
+-        stoppedRuntime(runtime, task, terminalAt)
++    try {
++      const privateAccess = await readRecord<{ encrypted: string }>(
++        `pentests/${id}/access.json`
+       )
+-    } else {
+-      await writeRecord(`pentests/${id}/runtime.json`, {
+-        ...runtime,
+-        status: "failed",
+-        phase: "startup_failed",
+-        error: "准备或启动后台测试失败，请检查运行环境和源码目录。",
+-        endedAt: terminalAt,
+-        updatedAt: terminalAt,
++      const credentials = privateAccess
++        ? JSON.parse(await decryptSecret(privateAccess.encrypted))
++        : null
++      await mkdir(path.join(directory, "work"), {
++        recursive: true,
++        mode: 0o700,
++      })
++      const environment: NodeJS.ProcessEnv = {
++        ...process.env,
++        PENNY_EXECUTION_ID: executionId,
++      }
++      // HTTPX initializes ALL_PROXY even with explicit HTTP(S) proxy settings.
++      // Preserve the HTTP route without initializing the unused SOCKS transport.
++      if (
++        (environment.http_proxy || environment.HTTP_PROXY) &&
++        (environment.https_proxy || environment.HTTPS_PROXY)
++      ) {
++        for (const key of ["all_proxy", "ALL_PROXY"]) {
++          if (/^socks[45]h?:\/\//i.test(environment[key] || ""))
++            delete environment[key]
++        }
++      }
++      if (await stopRequested(id)) await abortLaunch()
++      const child = spawnWorkerProcess(executable, [bridge], {
++        cwd: path.join(directory, "work"),
++        env: {
++          ...environment,
++          PYTHONPATH: sourcePath,
++          PYTHONUNBUFFERED: "1",
++          STRIX_LLM: model.model.includes("/")
++            ? model.model
++            : `openai/${model.model}`,
++          LLM_API_BASE: model.baseUrl,
++          LLM_API_KEY: model.apiKey,
++          STRIX_TELEMETRY: "false",
++          OPENAI_AGENTS_DISABLE_TRACING: "1",
++        },
++        runId: id,
++      })
++      spawned = child
++      await new Promise<void>((resolve, reject) => {
++        child.once("spawn", resolve)
++        child.once("error", reject)
++      })
++      // Spawn ownership is saved by the platform before the worker receives input.
++      runtime = { ...runtime, pid: child.pid!, phase: "worker_starting" }
++      await writeRecord(`pentests/${id}/launch.json`, {
++        executionId,
++        workerPid: child.pid!,
++        workerPgid: child.pid!,
++      })
++      await writeRecord(runtimePath(id), runtime)
++      await writeRecord("pentest-active.json", {
++        taskId: id,
++        ownerPid: process.pid,
++        pid: child.pid,
++        executionId,
+       })
++      if (await stopRequested(id)) {
++        child.stdin?.destroy()
++        child.unref()
++        await abortLaunch()
++      }
++      await new Promise<void>((resolve, reject) => {
++        child.stdin!.on("error", reject)
++        child.stdin!.end(
++          JSON.stringify({
++            directory,
++            task,
++            sourcePath,
++            slot: slotPath(),
++            credentials,
++            maxTurns,
++            executionId,
++          }),
++          () => resolve()
++        )
++      })
++      child.unref()
++      return runtime
++    } catch (error) {
++      if (error instanceof PentestStartError && error.code === "STOPPED")
++        throw error
++      spawned?.stdin?.destroy()
++      spawned?.unref()
++      runtime = await savePentestTransition(
++        id,
++        {
++          type: "EXECUTION_FAILED",
++          executionId,
++          at: new Date().toISOString(),
++          reason: "startup_failed",
++          ...(spawned?.pid
++            ? { workerPid: spawned.pid, workerPgid: spawned.pid }
++            : {}),
++        },
++        { error: "准备或启动后台测试失败。", pid: spawned?.pid ?? null }
++      )
++      const cleanup = await cleanPentestExecution(id, runtime, !spawned)
++      await finishPentestCleanup(id, runtime, undefined, cleanup)
++      throw error
+     }
+-    await releaseSlot(id)
+-    await reapStrixSandbox(id)
+-    throw error
+-  }
++  })
+ }
+ 
+ export async function stopPentest(id: string) {
+   const task = await readPentest(id)
+   if (!task) throw new PentestStartError("NOT_FOUND", "测试记录不存在。", 404)
+-  if (!["preparing", "running"].includes(task.status))
++  if (task.status === "stopped") return task.runtime!
++  if (task.runtime && !task.runtime.executionId)
+     throw new PentestStartError(
+-      "NOT_RUNNING",
+-      "该测试当前没有可结束的运行任务。",
++      "IDENTITY_NOT_RECORDED",
++      "旧记录未记录执行身份。",
+       409
+     )
+-  // Persist the intent first so a launch that is still in flight aborts instead
+-  // of bringing the run back after it has been stopped.
+-  await requestStop(id)
+-  const runtime = task.runtime
+-  // A preparing record holds the server pid until the worker is spawned; never
+-  // signal it, or ending a test would terminate the platform itself.
+-  const pid = workerSignalPid(runtime?.pid, process.pid)
+-  if (pid && !(await terminateProcessGroup(pid, STOP_LIMITS))) {
++  const terminalCleanup =
++    ["completed", "failed", "interrupted"].includes(task.status) &&
++    task.runtime?.cleanup &&
++    (!task.runtime.cleanup.processGroupExited ||
++      !task.runtime.cleanup.sandboxCleared)
++  if (
++    !["preparing", "running", "stopping"].includes(task.status) &&
++    !terminalCleanup
++  )
+     throw new PentestStartError(
+-      "STOP_FAILED",
+-      "无法终止后台测试进程，请稍后重试。",
+-      500
++      "NOT_RUNNING",
++      "该测试当前没有可结束的运行任务。",
++      409
+     )
+-  }
+-  const stopped = stoppedRuntime(runtime, task, new Date().toISOString())
+-  await writeRecord(`pentests/${id}/runtime.json`, stopped)
+-  await releaseSlot(id)
+-  await reapStrixSandbox(id)
+-  return stopped
++  await writeFile(stopMarker(id), new Date().toISOString(), { mode: 0o600 })
++  return serializePentest(id, async () => {
++    let runtime = (await readRecord<PentestRuntime>(runtimePath(id)))!
++    if (runtime.status === "stopped") return runtime
++    if (!runtime.executionId)
++      throw new PentestStartError(
++        "IDENTITY_NOT_RECORDED",
++        "旧记录未记录执行身份。",
++        409
++      )
++    if (["completed", "failed", "interrupted"].includes(runtime.status)) {
++      return finishPentestCleanup(id, runtime)
++    }
++    runtime = await savePentestTransition(id, {
++      type: "STOP_REQUESTED",
++      executionId: runtime.executionId,
++      at: new Date().toISOString(),
++      reason: "operator_stop",
++    })
++    return finishPentestCleanup(id, runtime)
++  })
+ }
+ 
+ export async function readPentestEvents(id: string, after: number) {
+diff --git a/lib/server/pentests.ts b/lib/server/pentests.ts
+index 0a2aa2a..67b3d89 100644
+--- a/lib/server/pentests.ts
++++ b/lib/server/pentests.ts
+@@ -152,14 +152,16 @@ export async function createPentestDraft(
+     throw new PentestInputError(
+       "Custom Instructions 与 Instruction File 只能选择一个。"
+     )
+-  if (instructionMode === "custom" && (!customInstructions || instructionFilePath))
+-    throw new PentestInputError(
+-      "Custom Instructions 模式必须只提供文本内容。"
+-    )
+-  if (instructionMode === "file" && (!instructionFilePath || customInstructions))
+-    throw new PentestInputError(
+-      "Instruction File 模式必须只提供指令文件。"
+-    )
++  if (
++    instructionMode === "custom" &&
++    (!customInstructions || instructionFilePath)
++  )
++    throw new PentestInputError("Custom Instructions 模式必须只提供文本内容。")
++  if (
++    instructionMode === "file" &&
++    (!instructionFilePath || customInstructions)
++  )
++    throw new PentestInputError("Instruction File 模式必须只提供指令文件。")
+   if (instructionFilePath)
+     await readTextInputFile(instructionFilePath, "Instruction File")
+ 
+@@ -271,21 +273,6 @@ export async function readPentest(id: string): Promise<PentestTask | null> {
+     `pentests/${id}/runtime.json`
+   )
+   if (!runtime) return task
+-  if (["preparing", "running"].includes(runtime.status) && runtime.pid) {
+-    let alive = true
+-    try {
+-      process.kill(runtime.pid, 0)
+-    } catch (error) {
+-      alive = (error as NodeJS.ErrnoException).code === "EPERM"
+-    }
+-    if (!alive) {
+-      runtime.status = "interrupted"
+-      runtime.phase = "process_exited"
+-      runtime.endedAt = new Date().toISOString()
+-      runtime.updatedAt = runtime.endedAt
+-      await writeRecord(`pentests/${id}/runtime.json`, runtime)
+-    }
+-  }
+   return { ...task, status: runtime.status, runtime }
+ }
+ 
+diff --git a/lib/server/strix-sandbox.ts b/lib/server/strix-sandbox.ts
+index deca6d6..dfb1c74 100644
+--- a/lib/server/strix-sandbox.ts
++++ b/lib/server/strix-sandbox.ts
+@@ -44,3 +44,26 @@ export async function reapStrixSandbox(
+     // Docker may be unavailable or the container may already be gone.
+   }
+ }
++
++// Strict lifecycle confirmation: command failures and remaining containers are
++// observable outcomes; callers retain the active slot until both checks pass.
++export async function confirmStrixSandboxCleanup(
++  taskId: string,
++  runner: SandboxCommandRunner = runCommand
++) {
++  const args = ["ps", "-aq", "--filter", `label=strix-run-id=${taskId}`]
++  try {
++    const before = await runner("docker", args)
++    const ids = before.stdout.trim().split(/\s+/).filter(Boolean)
++    if (ids.length) await runner("docker", ["rm", "-f", ...ids])
++    const after = await runner("docker", args)
++    if (after.stdout.trim())
++      return { sandboxCleared: false, error: "沙箱清理后仍然存在。" }
++    return { sandboxCleared: true }
++  } catch {
++    return {
++      sandboxCleared: false,
++      error: "沙箱清理检查失败，请重试结束测试。",
++    }
++  }
++}
+diff --git a/package.json b/package.json
+index 2eac952..d977740 100644
+--- a/package.json
++++ b/package.json
+@@ -19,7 +19,7 @@
+     "test:pentests": "node --test --test-concurrency=1 tests/pentests.test.mjs tests/pentest-runtime.test.mjs tests/pentest-stop.test.mjs tests/pentest-stop-ui.test.mjs tests/pentest-ui.test.mjs tests/strix-worker-stop.test.mjs tests/strix-worker-runtime.test.mjs",
+     "test:chat": "node --test tests/chat-copilot.test.mjs",
+     "test:findings": "node --test tests/findings-query.test.mjs",
+-    "test:unit": "node --test tests/pentest-inputs.unit.test.mjs tests/strix-runtime.unit.test.mjs tests/pentest-process.unit.test.mjs tests/pentest-estimate.unit.test.mjs tests/strix-sandbox.unit.test.mjs tests/controlled-spawn.unit.test.mjs",
++    "test:unit": "node --test tests/pentest-inputs.unit.test.mjs tests/strix-runtime.unit.test.mjs tests/pentest-process.unit.test.mjs tests/pentest-estimate.unit.test.mjs tests/strix-sandbox.unit.test.mjs tests/controlled-spawn.unit.test.mjs tests/pentest-lifecycle.unit.test.mjs",
+     "test:catalog": "node --test --test-concurrency=1 tests/native-catalog.test.mjs tests/native-catalog-ui.test.mjs"
+   },
+   "dependencies": {
+diff --git a/scripts/strix-worker.py b/scripts/strix-worker.py
+index 966e284..1c1fb81 100644
+--- a/scripts/strix-worker.py
++++ b/scripts/strix-worker.py
+@@ -132,15 +132,23 @@ class Worker:
+             self.state["error"] = self.scrub(error)
+         if self.state["status"] in {"completed", "failed", "interrupted", "stopped"}:
+             self.state["endedAt"] = now()
+-        self.save("runtime.json", self.state)
++        record = {**self.state, "at": now(), "executionId": self.payload["executionId"], "workerPid": os.getpid(), "workerPgid": os.getpgrp()}
++        with (self.directory / "execution-events.jsonl").open("a", encoding="utf-8") as stream:
++            stream.write(json.dumps(self.scrub(record), ensure_ascii=False) + "\n")
+         self.event("status", {"phase": phase, "status": self.state["status"]})
+ 
+     def event(self, kind: str, data: Any, agent_id: str | None = None) -> None:
+-        if dataclasses.is_dataclass(data) and not isinstance(data, type):
++        # SDK RunItem references the live Agent, whose tools contain thread locks.
++        # Persist the SDK's public input item instead of deep-copying that runtime.
++        if getattr(data, "type", None) == "run_item_stream_event":
++            data = {"type": data.type, "name": data.name, "item": {"raw_item": data.item.to_input_item()}}
++        elif getattr(data, "type", None) == "agent_updated_stream_event":
++            data = {"type": data.type, "new_agent": {"name": data.new_agent.name}}
++        elif dataclasses.is_dataclass(data) and not isinstance(data, type):
+             data = dataclasses.asdict(data)
+         elif hasattr(data, "model_dump"):
+             data = data.model_dump(mode="json")
+-        record = self.scrub({"at": now(), "type": kind, "agentId": agent_id, "data": data})
++        record = self.scrub({"at": now(), "executionId": self.payload["executionId"], "type": kind, "agentId": agent_id, "data": data})
+         with (self.directory / "events.jsonl").open("a", encoding="utf-8") as stream:
+             stream.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+ 
+@@ -244,12 +252,6 @@ class Worker:
+             if self.state["status"] != "completed":
+                 await snapshot()
+ 
+-    def release(self) -> None:
+-        slot = Path(self.payload["slot"])
+-        with contextlib.suppress(FileNotFoundError, ValueError):
+-            owner = json.loads(slot.read_text())
+-            if owner.get("taskId") == self.task["id"]:
+-                slot.unlink()
+ 
+ 
+ class RedactedLog:
+@@ -300,8 +302,6 @@ def main() -> int:
+     except BaseException as error:
+         worker.status("native_runner_failed", "failed", f"{type(error).__name__}: {error}")
+         return 1
+-    finally:
+-        worker.release()
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/tests/helpers/pentest-executor-fixture.mjs b/tests/helpers/pentest-executor-fixture.mjs
+index 124e289..9945d17 100644
+--- a/tests/helpers/pentest-executor-fixture.mjs
++++ b/tests/helpers/pentest-executor-fixture.mjs
+@@ -1,20 +1,18 @@
+ // Deterministic execution adapter used only by the public HTTP behavior tests.
+-import {
+-  readFile,
+-  writeFile,
+-  appendFile,
+-  unlink,
+-  mkdir,
+-} from "node:fs/promises"
++import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises"
+ import path from "node:path"
+ let input = ""
+ for await (const chunk of process.stdin) input += chunk
+-const { directory, task, source, slot } = JSON.parse(input)
++const { directory, task, source, executionId } = JSON.parse(input)
+ const startedAt = new Date().toISOString()
+ async function state(status) {
+-  await writeFile(
+-    path.join(directory, "runtime.json"),
++  await appendFile(
++    path.join(directory, "execution-events.jsonl"),
+     JSON.stringify({
++      executionId,
++      at: new Date().toISOString(),
++      workerPid: process.pid,
++      workerPgid: process.pid,
+       status,
+       phase: status,
+       pid: process.pid,
+@@ -22,7 +20,7 @@ async function state(status) {
+       updatedAt: new Date().toISOString(),
+       runName: task.id,
+       source,
+-    })
++    }) + "\n"
+   )
+ }
+ await state("running")
+@@ -38,7 +36,10 @@ await new Promise((resolve) => setTimeout(resolve, 1800))
+ if (task.sourceDirectory) {
+   const copied = path.join(directory, "source", "sample.js")
+   await readFile(copied)
+-  await writeFile(copied, "// proof of concept created in the independent copy\n")
++  await writeFile(
++    copied,
++    "// proof of concept created in the independent copy\n"
++  )
+ }
+ const artifacts = path.join(directory, "work", "strix_runs", task.id)
+ await mkdir(artifacts, { recursive: true })
+@@ -57,11 +58,32 @@ await writeFile(
+         status: "completed",
+       },
+     ],
+-    findings: [],
++    findings:
++      task.context?.notes === "final-write-failure"
++        ? [
++            {
++              id: "partial-fixture",
++              title: "Preserved partial finding",
++              severity: "info",
++            },
++          ]
++        : [],
+     summary: "Controlled execution fixture",
+     independentlyVerified: false,
++    final: task.context?.notes !== "final-write-failure",
+   })
+ )
++if (task.context?.notes === "final-write-failure") {
++  const temporary = path.join(directory, "final-result.tmp")
++  await mkdir(temporary)
++  // Exercise a real filesystem write failure after the partial snapshot. A
++  // buggy executor still claims completed; the platform must reject that claim.
++  try {
++    await writeFile(temporary, JSON.stringify({ findings: [], final: true }))
++  } catch {
++    /* expected EISDIR */
++  }
++}
+ await state("completed")
+ await appendFile(
+   path.join(directory, "events.jsonl"),
+@@ -71,5 +93,3 @@ await appendFile(
+     at: new Date().toISOString(),
+   }) + "\n"
+ )
+-const owner = JSON.parse(await readFile(slot, "utf8"))
+-if (owner.taskId === task.id) await unlink(slot)
+diff --git a/tests/helpers/pentest-hung-executor-fixture.mjs b/tests/helpers/pentest-hung-executor-fixture.mjs
+index b4d7bc4..26ab8a6 100644
+--- a/tests/helpers/pentest-hung-executor-fixture.mjs
++++ b/tests/helpers/pentest-hung-executor-fixture.mjs
+@@ -1,25 +1,29 @@
+ // Long-running execution adapter used to reproduce a worker that does not
+ // finish on SIGTERM and keeps publishing its state, like a stuck Strix run.
+-import { writeFile } from "node:fs/promises"
++import { writeFile, appendFile } from "node:fs/promises"
+ import { spawn } from "node:child_process"
+ import path from "node:path"
+ 
+ let input = ""
+ for await (const chunk of process.stdin) input += chunk
+-const { directory, task } = JSON.parse(input)
++const { directory, task, executionId } = JSON.parse(input)
+ const startedAt = new Date().toISOString()
+ 
+ async function state(status, phase = status) {
+-  await writeFile(
+-    path.join(directory, "runtime.json"),
++  await appendFile(
++    path.join(directory, "execution-events.jsonl"),
+     JSON.stringify({
++      executionId,
++      at: new Date().toISOString(),
++      workerPid: process.pid,
++      workerPgid: process.pid,
+       status,
+       phase,
+       pid: process.pid,
+       startedAt,
+       updatedAt: new Date().toISOString(),
+       runName: task.id,
+-    })
++    }) + "\n"
+   )
+ }
+ 
+diff --git a/tests/helpers/pentest-longrun-executor-fixture.mjs b/tests/helpers/pentest-longrun-executor-fixture.mjs
+index 3e3dfac..9141df1 100644
+--- a/tests/helpers/pentest-longrun-executor-fixture.mjs
++++ b/tests/helpers/pentest-longrun-executor-fixture.mjs
+@@ -1,24 +1,28 @@
+ // Execution adapter that stays running and exits promptly on SIGTERM; used by
+ // the browser regression test for the stale-poll race.
+-import { writeFile } from "node:fs/promises"
++import { appendFile } from "node:fs/promises"
+ import path from "node:path"
+ 
+ let input = ""
+ for await (const chunk of process.stdin) input += chunk
+-const { directory, task } = JSON.parse(input)
++const { directory, task, executionId } = JSON.parse(input)
+ const startedAt = new Date().toISOString()
+ 
+ async function state() {
+-  await writeFile(
+-    path.join(directory, "runtime.json"),
++  await appendFile(
++    path.join(directory, "execution-events.jsonl"),
+     JSON.stringify({
++      executionId,
++      at: new Date().toISOString(),
++      workerPid: process.pid,
++      workerPgid: process.pid,
+       status: "running",
+       phase: "agent_loop",
+       pid: process.pid,
+       startedAt,
+       updatedAt: new Date().toISOString(),
+       runName: task.id,
+-    })
++    }) + "\n"
+   )
+ }
+ 
+diff --git a/tests/helpers/pentest-preparing-executor-fixture.mjs b/tests/helpers/pentest-preparing-executor-fixture.mjs
+index 91d9d2e..d0ed892 100644
+--- a/tests/helpers/pentest-preparing-executor-fixture.mjs
++++ b/tests/helpers/pentest-preparing-executor-fixture.mjs
+@@ -1,11 +1,11 @@
+ // Execution adapter that stays in the preparing phase long enough for a test
+ // to send a stop request before it publishes `running`.
+-import { writeFile } from "node:fs/promises"
++import { writeFile, appendFile } from "node:fs/promises"
+ import path from "node:path"
+ 
+ let input = ""
+ for await (const chunk of process.stdin) input += chunk
+-const { directory, task } = JSON.parse(input)
++const { directory, task, executionId } = JSON.parse(input)
+ const startedAt = new Date().toISOString()
+ 
+ await writeFile(
+@@ -16,15 +16,19 @@ await writeFile(
+ // A stop during this window must terminate the worker and keep it stopped.
+ await new Promise((resolve) => setTimeout(resolve, 10000))
+ 
+-await writeFile(
+-  path.join(directory, "runtime.json"),
++await appendFile(
++  path.join(directory, "execution-events.jsonl"),
+   JSON.stringify({
++    executionId,
++    at: new Date().toISOString(),
++    workerPid: process.pid,
++    workerPgid: process.pid,
+     status: "running",
+     phase: "agent_loop",
+     pid: process.pid,
+     startedAt,
+     updatedAt: new Date().toISOString(),
+     runName: task.id,
+-  })
++  }) + "\n"
+ )
+ await new Promise(() => {})
+diff --git a/tests/helpers/pentest-unlaunched-executor-fixture.mjs b/tests/helpers/pentest-unlaunched-executor-fixture.mjs
+new file mode 100644
+index 0000000..27af269
+--- /dev/null
++++ b/tests/helpers/pentest-unlaunched-executor-fixture.mjs
+@@ -0,0 +1,5 @@
++// Remains alive when launch metadata fails before execution input is delivered.
++import { writeFileSync } from "node:fs"
++writeFileSync("fixture-worker.pid", String(process.pid))
++process.stdin.resume()
++setInterval(() => {}, 1000)
+diff --git a/tests/helpers/platform-server.mjs b/tests/helpers/platform-server.mjs
+index cf196a3..bc14a5d 100644
+--- a/tests/helpers/platform-server.mjs
++++ b/tests/helpers/platform-server.mjs
+@@ -1,5 +1,5 @@
+ import { spawn } from "node:child_process"
+-import { mkdtemp, rm } from "node:fs/promises"
++import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises"
+ import { tmpdir } from "node:os"
+ import path from "node:path"
+ import net from "node:net"
+@@ -9,6 +9,13 @@ export async function createPlatformServer({
+   env: overrides = {},
+ } = {}) {
+   const dataDir = await mkdtemp(path.join(tmpdir(), "penny-platform-"))
++  const bin = path.join(dataDir, "fixture-bin")
++  await mkdir(bin)
++  await writeFile(
++    path.join(bin, "docker"),
++    '#!/bin/sh\nprintf \'%s\\n\' \"$*\" >> \"$PENNY_DATA_DIR/sandbox-commands.log\"\nif [ -f "$PENNY_DATA_DIR/sandbox-failure" ]; then exit 1; fi\nif [ \"$1\" = ps ] && [ -f \"$PENNY_DATA_DIR/sandbox-present\" ]; then echo fixture-container; fi\nexit 0\n',
++    { mode: 0o700 }
++  )
+   const listener = net.createServer()
+   await new Promise((resolve) => listener.listen(0, "127.0.0.1", resolve))
+   const port = listener.address().port
+@@ -16,6 +23,7 @@ export async function createPlatformServer({
+   const env = {
+     ...process.env,
+     ...overrides,
++    PATH: `${bin}:${overrides.PATH ?? process.env.PATH}`,
+     PENNY_DATA_DIR: dataDir,
+     PENNY_NEXT_DIST_DIR: distDir,
+     NEXT_TELEMETRY_DISABLED: "1",
+diff --git a/tests/helpers/strix-worker-stop-harness.py b/tests/helpers/strix-worker-stop-harness.py
+index ab89fde..2feccdf 100644
+--- a/tests/helpers/strix-worker-stop-harness.py
++++ b/tests/helpers/strix-worker-stop-harness.py
+@@ -8,6 +8,7 @@ cleanup both ran before the worker published `stopped`.
+ from __future__ import annotations
+ 
+ import asyncio
++from dataclasses import dataclass
+ import importlib.util
+ import io
+ import json
+@@ -37,6 +38,8 @@ class AgentCoordinator:
+ 
+ class ReportState:
+     def __init__(self, scan_id: str) -> None:
++        global REPORT
++        REPORT = self
+         self.scan_id = scan_id
+         self.vulnerability_reports: list[object] = []
+         self.final_scan_result = None
+@@ -58,6 +61,29 @@ CAPTURED: dict[str, object] = {}
+ 
+ async def run_strix_scan(**kwargs: object) -> None:
+     CAPTURED.update(kwargs)
++    if len(sys.argv) > 2 and sys.argv[2] == "events":
++        @dataclass
++        class Agent:
++            name: str
++            lock: object
++
++        @dataclass
++        class Item:
++            agent: object
++            def to_input_item(self):
++                return {"type": "function_call", "name": "terminal", "arguments": "fixture-secret"}
++
++        @dataclass
++        class Event:
++            name: str
++            item: object
++            type: str = "run_item_stream_event"
++
++        kwargs["event_sink"]("root-agent", Event("tool_called", Item(Agent("Root", threading.Lock()))))
++        kwargs["event_sink"]("root-agent", {"type": "plain", "text": "fixture-secret"})
++        REPORT.run_record["status"] = "completed"
++        REPORT.final_scan_result = "Fixture completed"
++        return
+     try:
+         await asyncio.sleep(60)
+     finally:
+@@ -101,6 +127,8 @@ spec.loader.exec_module(worker_module)
+ worker_module.check_runtime = lambda source: {"image": "fake-image"}
+ 
+ payload = {
++    "credentials": {"customInstructions": "fixture-secret"},
++    "executionId": "worker-stop-fixture",
+     "directory": str(DIRECTORY),
+     "sourcePath": str(DIRECTORY),
+     "slot": str(DIRECTORY / "slot.json"),
+@@ -116,14 +144,18 @@ payload = {
+     },
+ }
+ sys.stdin = io.StringIO(json.dumps(payload))
+-threading.Timer(0.6, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
++if len(sys.argv) < 3:
++    threading.Timer(0.6, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
+ 
+ code = worker_module.main()
+ if code != 0:
+     print(f"worker exited with {code}", file=sys.stderr)
+     raise SystemExit(2)
+ 
+-runtime = json.loads((DIRECTORY / "runtime.json").read_text(encoding="utf-8"))
++if len(sys.argv) > 2:
++    raise SystemExit(0)
++
++runtime = json.loads((DIRECTORY / "execution-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+ for name in ("runner-cleaned", "report-cleaned"):
+     if not (DIRECTORY / name).exists():
+         print(f"missing {name}", file=sys.stderr)
+diff --git a/tests/pentest-lifecycle.unit.test.mjs b/tests/pentest-lifecycle.unit.test.mjs
+new file mode 100644
+index 0000000..685db1c
+--- /dev/null
++++ b/tests/pentest-lifecycle.unit.test.mjs
+@@ -0,0 +1,290 @@
++import { test } from "node:test"
++import assert from "node:assert/strict"
++import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises"
++import { tmpdir } from "node:os"
++import path from "node:path"
++import { pathToFileURL } from "node:url"
++import ts from "typescript"
++
++const directory = await mkdtemp(path.join(tmpdir(), "penny-lifecycle-"))
++const source = await readFile("lib/pentest-lifecycle.ts", "utf8")
++await writeFile(
++  path.join(directory, "lifecycle.mjs"),
++  ts.transpileModule(source, {
++    compilerOptions: {
++      module: ts.ModuleKind.ESNext,
++      target: ts.ScriptTarget.ES2022,
++    },
++  }).outputText
++)
++const { createPentestLifecycle, transitionPentestLifecycle } = await import(
++  pathToFileURL(path.join(directory, "lifecycle.mjs"))
++)
++test.after(() => rm(directory, { recursive: true, force: true }))
++
++test("confirmed start establishes an execution identity without assigning the platform PID to the worker", () => {
++  const initial = createPentestLifecycle({
++    taskId: "task-a",
++    at: "2026-11-14T05:00:00Z",
++  })
++  const next = transitionPentestLifecycle(initial, {
++    type: "START_CONFIRMED",
++    executionId: "execution-a",
++    ownerPid: 12345,
++    at: "2026-11-14T05:01:00Z",
++    reason: "operator_confirmed",
++  })
++  assert.deepEqual(next, {
++    taskId: "task-a",
++    status: "preparing",
++    revision: 1,
++    executionId: "execution-a",
++    ownerPid: 12345,
++    workerPid: null,
++    workerPgid: null,
++    sandboxId: null,
++    updatedAt: "2026-11-14T05:01:00Z",
++    reason: "operator_confirmed",
++  })
++  assert.equal(initial.status, "draft")
++  assert.equal(initial.revision, 0)
++  assert.equal(initial.executionId, null)
++})
++
++test("only the current execution can publish its worker identity and enter running", () => {
++  const preparing = transitionPentestLifecycle(
++    createPentestLifecycle({ taskId: "task-a", at: "2026-11-14T05:00:00Z" }),
++    {
++      type: "START_CONFIRMED",
++      executionId: "execution-a",
++      ownerPid: 12345,
++      at: "2026-11-14T05:01:00Z",
++      reason: "operator_confirmed",
++    }
++  )
++  const event = {
++    type: "EXECUTION_STARTED",
++    executionId: "execution-a",
++    workerPid: 23456,
++    workerPgid: 23456,
++    sandboxId: "sandbox-a",
++    at: "2026-11-14T05:02:00Z",
++    reason: "worker_identity_confirmed",
++  }
++  const running = transitionPentestLifecycle(preparing, event)
++  assert.equal(running.status, "running")
++  assert.equal(running.revision, 2)
++  assert.equal(running.ownerPid, 12345)
++  assert.equal(running.workerPid, 23456)
++  assert.equal(running.workerPgid, 23456)
++  assert.equal(running.sandboxId, "sandbox-a")
++  assert.throws(
++    () =>
++      transitionPentestLifecycle(preparing, {
++        ...event,
++        executionId: "old-execution",
++      }),
++    (error) => error.code === "STALE_EXECUTION"
++  )
++  assert.equal(preparing.workerPid, null)
++})
++
++test("stop requests enter stopping idempotently and reject late running events", () => {
++  const preparing = transitionPentestLifecycle(
++    createPentestLifecycle({ taskId: "task-a", at: "2026-11-14T05:00:00Z" }),
++    {
++      type: "START_CONFIRMED",
++      executionId: "execution-a",
++      ownerPid: 12345,
++      at: "2026-11-14T05:01:00Z",
++      reason: "operator_confirmed",
++    }
++  )
++  const stop = {
++    type: "STOP_REQUESTED",
++    executionId: "execution-a",
++    at: "2026-11-14T05:02:00Z",
++    reason: "operator_stop",
++  }
++  const stopping = transitionPentestLifecycle(preparing, stop)
++  assert.equal(stopping.status, "stopping")
++  assert.equal(stopping.workerPid, null)
++  assert.equal(stopping.revision, 2)
++  assert.deepEqual(
++    transitionPentestLifecycle(stopping, {
++      ...stop,
++      at: "2026-11-14T05:03:00Z",
++    }),
++    stopping
++  )
++  assert.throws(
++    () =>
++      transitionPentestLifecycle(stopping, {
++        type: "EXECUTION_STARTED",
++        executionId: "execution-a",
++        workerPid: 23456,
++        workerPgid: 23456,
++        sandboxId: null,
++        at: "2026-11-14T05:04:00Z",
++        reason: "late_worker_event",
++      }),
++    (error) => error.code === "INVALID_TRANSITION"
++  )
++})
++
++test("stopped requires both process group exit and sandbox cleanup confirmation", () => {
++  const preparing = transitionPentestLifecycle(
++    createPentestLifecycle({ taskId: "task-a", at: "2026-11-14T05:00:00Z" }),
++    {
++      type: "START_CONFIRMED",
++      executionId: "execution-a",
++      ownerPid: 12345,
++      at: "2026-11-14T05:01:00Z",
++      reason: "operator_confirmed",
++    }
++  )
++  const stopping = transitionPentestLifecycle(preparing, {
++    type: "STOP_REQUESTED",
++    executionId: "execution-a",
++    at: "2026-11-14T05:02:00Z",
++    reason: "operator_stop",
++  })
++  const confirm = {
++    type: "STOP_CONFIRMED",
++    executionId: "execution-a",
++    processGroupExited: true,
++    sandboxCleared: true,
++    at: "2026-11-14T05:03:00Z",
++    reason: "resources_confirmed_clear",
++  }
++  for (const flags of [
++    { processGroupExited: false },
++    { sandboxCleared: false },
++  ]) {
++    assert.throws(
++      () => transitionPentestLifecycle(stopping, { ...confirm, ...flags }),
++      (error) => error.code === "CLEANUP_UNCONFIRMED"
++    )
++    assert.equal(stopping.status, "stopping")
++    assert.equal(stopping.revision, 2)
++  }
++  const stopped = transitionPentestLifecycle(stopping, confirm)
++  assert.equal(stopped.status, "stopped")
++  assert.equal(stopped.revision, 3)
++  assert.throws(
++    () =>
++      transitionPentestLifecycle(stopped, {
++        type: "EXECUTION_STARTED",
++        executionId: "execution-a",
++        workerPid: 23456,
++        workerPgid: 23456,
++        sandboxId: null,
++        at: "2026-11-14T05:04:00Z",
++        reason: "late_worker_event",
++      }),
++    (error) => error.code === "INVALID_TRANSITION"
++  )
++})
++
++test("completion requires a durable final result and failures and interruptions preserve identity", () => {
++  const initial = createPentestLifecycle({ taskId: "task-a", at: "a" })
++  const preparing = transitionPentestLifecycle(initial, {
++    type: "START_CONFIRMED",
++    executionId: "e",
++    ownerPid: 12,
++    at: "b",
++    reason: "start",
++  })
++  const running = transitionPentestLifecycle(preparing, {
++    type: "EXECUTION_STARTED",
++    executionId: "e",
++    workerPid: 13,
++    workerPgid: 13,
++    sandboxId: null,
++    at: "c",
++    reason: "started",
++  })
++  const event = {
++    type: "EXECUTION_COMPLETED",
++    executionId: "e",
++    finalResultPersisted: false,
++    at: "d",
++    reason: "finished",
++  }
++  assert.throws(
++    () => transitionPentestLifecycle(running, event),
++    (error) => error.code === "FINAL_RESULT_UNCONFIRMED"
++  )
++  assert.equal(
++    transitionPentestLifecycle(running, {
++      ...event,
++      finalResultPersisted: true,
++    }).status,
++    "completed"
++  )
++  assert.equal(
++    transitionPentestLifecycle(preparing, {
++      ...event,
++      type: "EXECUTION_FAILED",
++    }).status,
++    "failed"
++  )
++  assert.equal(
++    transitionPentestLifecycle(running, {
++      ...event,
++      type: "EXECUTION_INTERRUPTED",
++    }).status,
++    "interrupted"
++  )
++})
++
++test("cleanup observations preserve lifecycle status and increment the public revision", () => {
++  const preparing = transitionPentestLifecycle(
++    createPentestLifecycle({ taskId: "t", at: "a" }),
++    {
++      type: "START_CONFIRMED",
++      executionId: "e",
++      ownerPid: 1,
++      at: "b",
++      reason: "start",
++    }
++  )
++  const stopping = transitionPentestLifecycle(preparing, {
++    type: "STOP_REQUESTED",
++    executionId: "e",
++    at: "c",
++    reason: "stop",
++  })
++  const observed = transitionPentestLifecycle(stopping, {
++    type: "CLEANUP_RECORDED",
++    executionId: "e",
++    at: "d",
++    reason: "cleanup_failed",
++  })
++  assert.equal(observed.status, "stopping")
++  assert.equal(observed.revision, 3)
++  assert.equal(observed.reason, "cleanup_failed")
++})
++
++test("execution progress updates its revision without changing status or assigning worker identity during preparation", () => {
++  const preparing = transitionPentestLifecycle(
++    createPentestLifecycle({ taskId: "t", at: "a" }),
++    {
++      type: "START_CONFIRMED",
++      executionId: "e",
++      ownerPid: 1,
++      at: "b",
++      reason: "start",
++    }
++  )
++  const progress = transitionPentestLifecycle(preparing, {
++    type: "EXECUTION_PROGRESS",
++    executionId: "e",
++    at: "c",
++    reason: "sandbox_preparing",
++  })
++  assert.equal(progress.status, "preparing")
++  assert.equal(progress.workerPid, null)
++  assert.equal(progress.revision, 2)
++  assert.equal(progress.reason, "sandbox_preparing")
++})
+diff --git a/tests/pentest-runtime.test.mjs b/tests/pentest-runtime.test.mjs
+index bfb5070..5e7239a 100644
+--- a/tests/pentest-runtime.test.mjs
++++ b/tests/pentest-runtime.test.mjs
+@@ -1,16 +1,27 @@
+ import { test } from "node:test"
+ import assert from "node:assert/strict"
+ import { execFileSync } from "node:child_process"
++import { writeFile, unlink } from "node:fs/promises"
+ import path from "node:path"
+ import { createPlatformServer } from "./helpers/platform-server.mjs"
+ 
+-async function waitForTask(base, id, headers, expected = "completed") {
++async function waitForTask(
++  base,
++  id,
++  headers,
++  expected = "completed",
++  requireCleanup = false
++) {
+   let record
+   for (let attempt = 0; attempt < 80; attempt += 1) {
+     record = (
+       await (await fetch(`${base}/api/pentests/${id}`, { headers })).json()
+     ).task
+-    if (record.status === expected) return record
++    if (
++      record.status === expected &&
++      (!requireCleanup || record.runtime.cleanup)
++    )
++      return record
+     await new Promise((resolve) => setTimeout(resolve, 100))
+   }
+   return record
+@@ -84,7 +95,11 @@ test("confirmed Web App Pentest runs independently, survives restart, and preser
+     const created = await create()
+     assert.equal(created.status, 201)
+     const createdText = await created.text()
+-    for (const secret of ["private-test-password", "private-header-value", "fixture-user"])
++    for (const secret of [
++      "private-test-password",
++      "private-header-value",
++      "fixture-user",
++    ])
+       assert.ok(!createdText.includes(secret))
+     const { task } = JSON.parse(createdText)
+     assert.equal(task.kind, "web_app_pentest")
+@@ -114,43 +129,150 @@ test("confirmed Web App Pentest runs independently, survives restart, and preser
+     await platform.start()
+     const record = await waitForTask(platform.base, task.id, headers)
+     assert.equal(record.status, "completed")
++    assert.ok(record.runtime.revision >= 3)
++    assert.ok(record.runtime.executionId)
++    assert.notEqual(record.runtime.workerPid, record.runtime.ownerPid)
+     assert.equal(record.targets[0], "http://127.0.0.1:8080/")
+     assert.equal(record.runtime.source, undefined)
++    await writeFile(
++      path.join(platform.dataDir, "sandbox-failure"),
++      "failed execution cleanup fixture"
++    )
++    const failureDraft = await fetch(`${platform.base}/api/pentests`, {
++      method: "POST",
++      headers,
++      body: JSON.stringify({
++        kind: "web_app_pentest",
++        targets: ["http://127.0.0.1:9"],
++        context: { notes: "final-write-failure" },
++      }),
++    })
++    const failureTask = (await failureDraft.json()).task
++    assert.equal((await start(failureTask.id, true)).status, 202)
++    const failure = await waitForTask(
++      platform.base,
++      failureTask.id,
++      headers,
++      "failed",
++      true
++    )
++    assert.equal(failure.status, "failed")
++    const partial = await (
++      await fetch(`${platform.base}/api/pentests/${failureTask.id}/results`, {
++        headers,
++      })
++    ).json()
++    assert.equal(partial.results.final, false)
++    assert.equal(partial.results.findings.length, 1)
++    assert.ok(failure.runtime.error)
++    const cleanupFailureResponse = await fetch(
++      `${platform.base}/api/pentests/${failureTask.id}/stop`,
++      { method: "POST", headers }
++    )
++    assert.equal(cleanupFailureResponse.status, 200)
++    const cleanupFailure = (await cleanupFailureResponse.json()).runtime
++    assert.equal(cleanupFailure.status, "failed")
++    assert.equal(cleanupFailure.error, failure.runtime.error)
++    assert.ok(cleanupFailure.cleanup.error)
++    await unlink(path.join(platform.dataDir, "sandbox-failure"))
++    const cleanupSuccess = (
++      await (
++        await fetch(`${platform.base}/api/pentests/${failureTask.id}/stop`, {
++          method: "POST",
++          headers,
++        })
++      ).json()
++    ).runtime
++    assert.equal(cleanupSuccess.status, "failed")
++    assert.equal(cleanupSuccess.error, failure.runtime.error)
++    assert.equal(cleanupSuccess.cleanup.sandboxCleared, true)
+ 
+-    const events = await fetch(`${platform.base}/api/pentests/${task.id}/events`, { headers })
++    const events = await fetch(
++      `${platform.base}/api/pentests/${task.id}/events`,
++      { headers }
++    )
+     assert.equal(events.status, 200)
+     assert.ok((await events.json()).events.length >= 2)
+-    const results = await fetch(`${platform.base}/api/pentests/${task.id}/results`, { headers })
++    const results = await fetch(
++      `${platform.base}/api/pentests/${task.id}/results`,
++      { headers }
++    )
+     assert.equal(results.status, 200)
+     const projection = await results.json()
+     assert.equal(projection.available, true)
+     assert.ok(projection.results.agents.length >= 1)
+     assert.equal(projection.results.independentlyVerified, false)
+-    const artifacts = await fetch(`${platform.base}/api/pentests/${task.id}/artifacts`, { headers })
++    const artifacts = await fetch(
++      `${platform.base}/api/pentests/${task.id}/artifacts`,
++      { headers }
++    )
+     assert.equal(artifacts.status, 200)
+     assert.equal((await artifacts.json()).artifacts[0].path, "report.md")
+-    const report = await fetch(`${platform.base}/api/pentests/${task.id}/artifacts?path=report.md`, { headers })
++    const report = await fetch(
++      `${platform.base}/api/pentests/${task.id}/artifacts?path=report.md`,
++      { headers }
++    )
+     assert.equal(report.status, 200)
+     assert.equal(await report.text(), "Controlled execution fixture report\n")
+     assert.equal(
+-      (await fetch(`${platform.base}/api/pentests/${task.id}/artifacts?path=../access.json`, { headers })).status,
++      (
++        await fetch(
++          `${platform.base}/api/pentests/${task.id}/artifacts?path=../access.json`,
++          { headers }
++        )
++      ).status,
+       400
+     )
+     assert.equal((await start(task.id, true)).status, 409)
+ 
+     assert.equal((await start(other.id, true)).status, 202)
+-    const stopped = await fetch(`${platform.base}/api/pentests/${other.id}/stop`, {
+-      method: "POST",
+-      headers,
+-    })
++    const stopped = await fetch(
++      `${platform.base}/api/pentests/${other.id}/stop`,
++      {
++        method: "POST",
++        headers,
++      }
++    )
+     assert.equal(stopped.status, 200)
+     assert.equal((await stopped.json()).runtime.status, "stopped")
+     const recoveredDraft = await create("http://127.0.0.1:8082")
+     assert.equal(recoveredDraft.status, 201)
+     const recoveredTask = (await recoveredDraft.json()).task
+     assert.equal((await start(recoveredTask.id, true)).status, 202)
+-    const recovered = await waitForTask(platform.base, recoveredTask.id, headers)
++    const recovered = await waitForTask(
++      platform.base,
++      recoveredTask.id,
++      headers
++    )
+     assert.equal(recovered.status, "completed")
++    await new Promise((resolve) => setTimeout(resolve, 300))
++    await writeFile(
++      path.join(platform.dataDir, "sandbox-failure"),
++      "terminal cleanup fixture"
++    )
++    const cleanupTask = (await (await create("http://127.0.0.1:8083")).json())
++      .task
++    assert.equal((await start(cleanupTask.id, true)).status, 202)
++    const terminal = await waitForTask(
++      platform.base,
++      cleanupTask.id,
++      headers,
++      "completed",
++      true
++    )
++    assert.equal(terminal.status, "completed")
++    assert.equal(terminal.runtime.cleanup.sandboxCleared, false)
++    const retry = () =>
++      fetch(`${platform.base}/api/pentests/${cleanupTask.id}/stop`, {
++        method: "POST",
++        headers,
++      })
++    assert.equal((await retry()).status, 200)
++    await unlink(path.join(platform.dataDir, "sandbox-failure"))
++    const cleaned = (await (await retry()).json()).runtime
++    assert.equal(cleaned.status, "completed")
++    assert.equal(cleaned.cleanup.sandboxCleared, true)
++    assert.ok(cleaned.revision > terminal.runtime.revision)
+   } finally {
+     await platform.dispose()
+     if (previous.python === undefined) delete process.env.PENNY_STRIX_PYTHON
+diff --git a/tests/pentest-stop-ui.test.mjs b/tests/pentest-stop-ui.test.mjs
+index 17bc896..baac8ab 100644
+--- a/tests/pentest-stop-ui.test.mjs
++++ b/tests/pentest-stop-ui.test.mjs
+@@ -2,6 +2,7 @@ import { test } from "node:test"
+ import assert from "node:assert/strict"
+ import { execFileSync } from "node:child_process"
+ import { existsSync } from "node:fs"
++import { writeFile, unlink } from "node:fs/promises"
+ import path from "node:path"
+ import { chromium, expect } from "@playwright/test"
+ import { createPlatformServer } from "./helpers/platform-server.mjs"
+@@ -103,6 +104,29 @@ test("a detail poll that started before stop cannot restore the running state",
+     const status = page.getByTestId("pentest-status")
+     await expect(status).toHaveText("running", { timeout: 20000 })
+ 
++    let oldRevisionDelivered = false
++    const detailURL = `${platform.base}/api/pentests/${task.id}`
++    await page.route(detailURL, async (route) => {
++      if (oldRevisionDelivered) return route.continue()
++      const response = await route.fetch()
++      const body = await response.json()
++      body.task.status = "preparing"
++      body.task.runtime.status = "preparing"
++      body.task.runtime.revision -= 1
++      oldRevisionDelivered = true
++      await route.fulfill({ status: 200, json: body })
++    })
++    for (let waited = 0; !oldRevisionDelivered && waited < 8000; waited += 100)
++      await page.waitForTimeout(100)
++    assert.equal(oldRevisionDelivered, true)
++    await page.waitForTimeout(200)
++    assert.equal(
++      await status.textContent(),
++      "running",
++      "an older revision must not replace the current state"
++    )
++    await page.unroute(detailURL)
++
+     let armed = false
+     let held = false
+     let capturedStatus
+@@ -155,6 +179,49 @@ test("a detail poll that started before stop cannot restore the running state",
+       await context.request.get(`${platform.base}/api/pentests/${task.id}`)
+     ).json()
+     assert.equal(record.task.status, "stopped")
++    await page.reload()
++    await expect(page.getByTestId("pentest-status")).toHaveText("stopped")
++    const second = (
++      await (
++        await context.request.post(`${platform.base}/api/pentests`, {
++          data: {
++            kind: "web_app_pentest",
++            targets: ["http://127.0.0.1:9"],
++            scanMode: "quick",
++          },
++        })
++      ).json()
++    ).task
++    const secondStart = await context.request.post(
++      `${platform.base}/api/pentests/${second.id}/start`,
++      { data: { confirmed: true, maxTurns: 5 } }
++    )
++    assert.equal(secondStart.status(), 202)
++    workerPid = (await secondStart.json()).runtime.pid
++    await page.goto(`${platform.base}/?view=pentests&task=${second.id}`)
++    await expect(page.getByTestId("pentest-status")).toHaveText("running")
++    await writeFile(
++      path.join(platform.dataDir, "sandbox-failure"),
++      "fixture failure"
++    )
++    page.once("dialog", (dialog) => dialog.accept())
++    await page.getByRole("button", { name: "结束测试", exact: true }).click()
++    await expect(page.getByTestId("pentest-status")).toHaveText("stopping")
++    await expect(
++      page.getByRole("button", { name: "重试结束", exact: true })
++    ).toBeEnabled()
++    await expect(page.getByTestId("pentest-cleanup")).toContainText(
++      "沙箱清理：尚未确认"
++    )
++    await page.reload()
++    await expect(page.getByTestId("pentest-status")).toHaveText("stopping")
++    await expect(
++      page.getByRole("button", { name: "重试结束", exact: true })
++    ).toBeVisible()
++    await unlink(path.join(platform.dataDir, "sandbox-failure"))
++    page.once("dialog", (dialog) => dialog.accept())
++    await page.getByRole("button", { name: "重试结束", exact: true }).click()
++    await expect(page.getByTestId("pentest-status")).toHaveText("stopped")
+   } finally {
+     if (workerPid && alive(workerPid)) killGroup(workerPid)
+     await browser?.close()
+diff --git a/tests/pentest-stop.test.mjs b/tests/pentest-stop.test.mjs
+index 64148b1..a5941ca 100644
+--- a/tests/pentest-stop.test.mjs
++++ b/tests/pentest-stop.test.mjs
+@@ -2,7 +2,7 @@ import { test } from "node:test"
+ import assert from "node:assert/strict"
+ import { execFileSync } from "node:child_process"
+ import { existsSync } from "node:fs"
+-import { readFile, writeFile } from "node:fs/promises"
++import { readFile, writeFile, mkdir } from "node:fs/promises"
+ import path from "node:path"
+ import { createPlatformServer } from "./helpers/platform-server.mjs"
+ import { createZombie } from "./helpers/zombie-process.mjs"
+@@ -206,6 +206,7 @@ test("stopping during preparing terminates the worker, keeps the platform up, an
+     assert.equal(started.status, 202)
+     const startBody = await started.json()
+     assert.equal(startBody.runtime.status, "preparing")
++    assert.equal(startBody.runtime.workerPid, null)
+     workerPid = startBody.runtime.pid
+     assert.ok(workerPid)
+ 
+@@ -299,7 +300,7 @@ test("a stop request recorded before launch aborts the start without reviving th
+   }
+ })
+ 
+-test("an unkillable worker yields STOP_FAILED and its zombie slot is reclaimable", async () => {
++test("a legacy worker without execution identity is never signaled and retains its slot", async () => {
+   const { platform, headers } = await bootPlatform(PREPARING)
+   let zombie
+   let workerPid
+@@ -323,24 +324,276 @@ test("an unkillable worker yields STOP_FAILED and its zombie slot is reclaimable
+       JSON.stringify({ taskId: task.id, ownerPid: zombie.pid, pid: zombie.pid })
+     )
+ 
++    await waitFor(
++      () => readTask(platform.base, task.id, headers),
++      (record) => record?.status === "interrupted"
++    )
+     const stopped = await stopTask(headers, platform.base, task.id)
+-    assert.equal(stopped.status, 500)
+-    assert.equal((await stopped.json()).error.code, "STOP_FAILED")
+-    assert.equal((await readRuntime(platform, task.id)).status, "running")
++    assert.equal(stopped.status, 409)
++    assert.equal((await stopped.json()).error.code, "IDENTITY_NOT_RECORDED")
++    assert.equal((await readRuntime(platform, task.id)).status, "interrupted")
+     assert.ok(
+       existsSync(path.join(platform.dataDir, "pentest-active.json")),
+       "a failed stop must not release the active slot"
+     )
+ 
+-    // The zombie cannot run work, so a new launch must reclaim the slot.
++    // Missing ownership and cleanup evidence keeps the slot occupied.
+     const next = await createTask(headers, platform.base)
+     const startedNext = await startTask(headers, platform.base, next.id)
+-    assert.equal(startedNext.status, 202)
+-    workerPid = (await startedNext.json()).runtime.pid
+-    assert.equal((await stopTask(headers, platform.base, next.id)).status, 200)
++    assert.equal(startedNext.status, 409)
++    assert.equal((await startedNext.json()).error.code, "TASK_BUSY")
++    assert.equal(alive(zombie.pid), true)
+   } finally {
+     zombie?.stop()
+     if (workerPid) killGroup(workerPid)
+     await platform.dispose()
+   }
+ })
++
++test("sandbox confirmation failure retains stopping and its slot until an idempotent retry confirms cleanup", async () => {
++  const { platform, headers } = await bootPlatform(PREPARING)
++  let workerPid
++  try {
++    const task = await createTask(headers, platform.base)
++    const start = await startTask(headers, platform.base, task.id)
++    workerPid = (await start.json()).runtime.pid
++    const identity = (await readTask(platform.base, task.id, headers)).runtime
++      .executionId
++    const eventFile = path.join(
++      platform.dataDir,
++      "pentests",
++      task.id,
++      "execution-events.jsonl"
++    )
++    await (
++      await import("node:fs/promises")
++    ).appendFile(
++      eventFile,
++      JSON.stringify({
++        executionId: "previous-execution",
++        at: new Date().toISOString(),
++        status: "completed",
++        phase: "stale_completion",
++        workerPid,
++        workerPgid: workerPid,
++      }) + "\n"
++    )
++    await new Promise((resolve) => setTimeout(resolve, 500))
++    assert.equal(
++      (await readTask(platform.base, task.id, headers)).status,
++      "preparing"
++    )
++    await writeFile(
++      path.join(platform.dataDir, "sandbox-present"),
++      "fixture container remains after deletion"
++    )
++    const first = await stopTask(headers, platform.base, task.id)
++    assert.equal(first.status, 200)
++    const pending = (await first.json()).runtime
++    assert.equal(pending.status, "stopping")
++    assert.equal(pending.cleanup.processGroupExited, true)
++    assert.equal(pending.cleanup.sandboxCleared, false)
++    assert.ok(pending.cleanup.error)
++    const next = await createTask(headers, platform.base)
++    assert.equal((await startTask(headers, platform.base, next.id)).status, 409)
++    await (
++      await import("node:fs/promises")
++    ).unlink(path.join(platform.dataDir, "sandbox-present"))
++    await writeFile(
++      path.join(platform.dataDir, "sandbox-failure"),
++      "fixture command fails"
++    )
++    const again = (
++      await (await stopTask(headers, platform.base, task.id)).json()
++    ).runtime
++    assert.equal(again.status, "stopping")
++    assert.ok(again.revision > pending.revision)
++    await platform.stop()
++    await platform.start()
++    const restarted = await readTask(platform.base, task.id, headers)
++    assert.equal(restarted.status, "stopping")
++    assert.ok(
++      restarted.runtime.revision > again.revision,
++      "startup must check the pending cleanup"
++    )
++    await (
++      await import("node:fs/promises")
++    ).unlink(path.join(platform.dataDir, "sandbox-failure"))
++    const retried = (
++      await (await stopTask(headers, platform.base, task.id)).json()
++    ).runtime
++    assert.equal(retried.status, "stopped")
++    assert.deepEqual(retried.cleanup, {
++      processGroupExited: true,
++      sandboxCleared: true,
++    })
++    const repeated = (
++      await (await stopTask(headers, platform.base, task.id)).json()
++    ).runtime
++    assert.equal(repeated.revision, retried.revision)
++    await (
++      await import("node:fs/promises")
++    ).appendFile(
++      eventFile,
++      JSON.stringify({
++        executionId: identity,
++        at: new Date().toISOString(),
++        status: "running",
++        phase: "late_running",
++        workerPid,
++        workerPgid: workerPid,
++      }) + "\n"
++    )
++    await new Promise((resolve) => setTimeout(resolve, 500))
++    const late = await readTask(platform.base, task.id, headers)
++    assert.equal(late.status, "stopped")
++    assert.equal(late.runtime.revision, retried.revision)
++    assert.equal(
++      existsSync(path.join(platform.dataDir, "pentest-active.json")),
++      false
++    )
++  } finally {
++    if (workerPid && alive(workerPid)) killGroup(workerPid)
++    await platform.dispose()
++  }
++})
++
++test("startup rejects a live foreign PID without signaling it and task reads preserve the reconciled record", async () => {
++  const { platform, headers } = await bootPlatform(PREPARING)
++  try {
++    const task = await createTask(headers, platform.base)
++    await platform.stop()
++    const now = new Date().toISOString()
++    const runtimeFile = path.join(
++      platform.dataDir,
++      "pentests",
++      task.id,
++      "runtime.json"
++    )
++    await writeFile(
++      runtimeFile,
++      JSON.stringify({
++        status: "running",
++        revision: 2,
++        executionId: "foreign-execution",
++        ownerPid: 1,
++        workerPid: process.pid,
++        workerPgid: process.pid,
++        sandboxId: null,
++        pid: process.pid,
++        phase: "agent_loop",
++        startedAt: now,
++        updatedAt: now,
++        runName: task.id,
++      })
++    )
++    await writeFile(
++      path.join(platform.dataDir, "pentest-active.json"),
++      JSON.stringify({ taskId: task.id, ownerPid: 1, pid: process.pid })
++    )
++    await writeFile(
++      path.join(platform.dataDir, "sandbox-present"),
++      "fixture resource must remain untouched"
++    )
++    await platform.start()
++    const reconciled = await readTask(platform.base, task.id, headers)
++    assert.equal(reconciled.status, "interrupted")
++    assert.equal(reconciled.runtime.cleanup.processGroupExited, false)
++    assert.equal(alive(process.pid), true)
++    const commands = await readFile(
++      path.join(platform.dataDir, "sandbox-commands.log"),
++      "utf8"
++    ).catch(() => "")
++    assert.equal(
++      commands.includes("rm -f"),
++      false,
++      "unconfirmed ownership must not delete sandbox resources"
++    )
++    assert.equal(
++      existsSync(path.join(platform.dataDir, "pentest-active.json")),
++      true
++    )
++    const before = await readFile(runtimeFile, "utf8")
++    for (let count = 0; count < 3; count++)
++      await readTask(platform.base, task.id, headers)
++    assert.equal(await readFile(runtimeFile, "utf8"), before)
++  } finally {
++    await platform.dispose()
++  }
++})
++
++test("failed launch persistence retains spawned identity and blocks cleanup until group exit is confirmed", async () => {
++  const { platform, headers } = await bootPlatform(
++    "tests/helpers/pentest-unlaunched-executor-fixture.mjs"
++  )
++  let pid, taskId
++  try {
++    await writeFile(
++      path.join(platform.dataDir, "fixture-bin", "ps"),
++      "#!/bin/sh\nexit 1\n",
++      { mode: 0o700 }
++    )
++    const task = await createTask(headers, platform.base)
++    taskId = task.id
++    await mkdir(path.join(platform.dataDir, "pentests", task.id, "launch.json"))
++    assert.equal((await startTask(headers, platform.base, task.id)).status, 500)
++    const failed = await readTask(platform.base, task.id, headers)
++    pid = failed.runtime.pid
++    assert.equal(failed.status, "failed")
++    assert.equal(failed.runtime.workerPid, pid)
++    assert.equal(failed.runtime.workerPgid, pid)
++    assert.equal(alive(pid), true)
++    assert.equal(failed.runtime.cleanup.processGroupExited, false)
++    const retriedResponse = await stopTask(headers, platform.base, task.id)
++    assert.equal(retriedResponse.status, 200)
++    const retried = (await retriedResponse.json()).runtime
++    assert.equal(retried.cleanup.processGroupExited, false)
++    assert.equal(retried.endedAt, failed.runtime.endedAt)
++    assert.equal(retried.error, failed.runtime.error)
++    assert.equal(
++      existsSync(path.join(platform.dataDir, "pentest-active.json")),
++      true
++    )
++    assert.equal(
++      existsSync(path.join(platform.dataDir, "sandbox-commands.log")),
++      false
++    )
++    const other = await createTask(headers, platform.base)
++    assert.equal(
++      (await startTask(headers, platform.base, other.id)).status,
++      409
++    )
++    killGroup(pid)
++    await waitFor(
++      () => alive(pid),
++      (value) => !value
++    )
++    assert.equal((await stopTask(headers, platform.base, task.id)).status, 200)
++    assert.equal(
++      existsSync(path.join(platform.dataDir, "pentest-active.json")),
++      false
++    )
++  } finally {
++    if (!pid && taskId) {
++      // Fixture-only teardown still reaps the child when an assertion fails early.
++      try {
++        pid = Number(
++          await readFile(
++            path.join(
++              platform.dataDir,
++              "pentests",
++              taskId,
++              "work",
++              "fixture-worker.pid"
++            ),
++            "utf8"
++          )
++        )
++      } catch {
++        /* spawn may not have completed */
++      }
++    }
++    if (pid) killGroup(pid)
++    await platform.dispose()
++  }
++})
+diff --git a/tests/pentest-ui.test.mjs b/tests/pentest-ui.test.mjs
+index f9ccd75..01827b2 100644
+--- a/tests/pentest-ui.test.mjs
++++ b/tests/pentest-ui.test.mjs
+@@ -2,6 +2,7 @@ import { test } from "node:test"
+ import assert from "node:assert/strict"
+ import { execFileSync } from "node:child_process"
+ import { existsSync } from "node:fs"
++import { readFile, writeFile, unlink } from "node:fs/promises"
+ import path from "node:path"
+ import { chromium, expect } from "@playwright/test"
+ import { createPlatformServer } from "./helpers/platform-server.mjs"
+@@ -25,7 +26,8 @@ test("browser creates, confirms, reloads, and inspects a Web App Pentest", async
+         PENNY_ADMIN_PASSWORD: "ui-pentest-password-2026",
+       },
+     })
+-    const installedChrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
++    const installedChrome =
++      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+     browser = await chromium.launch({
+       headless: true,
+       ...(process.env.PENNY_CHROME_PATH
+@@ -36,35 +38,52 @@ test("browser creates, confirms, reloads, and inspects a Web App Pentest", async
+     })
+     const context = await browser.newContext()
+     let page = await context.newPage()
+-    const login = await context.request.post(`${platform.base}/api/auth/login`, {
+-      headers: { Origin: platform.base },
+-      data: {
+-        username: "ui-pentest",
+-        password: "ui-pentest-password-2026",
+-      },
+-    })
++    const login = await context.request.post(
++      `${platform.base}/api/auth/login`,
++      {
++        headers: { Origin: platform.base },
++        data: {
++          username: "ui-pentest",
++          password: "ui-pentest-password-2026",
++        },
++      }
++    )
+     assert.equal(login.status(), 200)
+     await page.goto(`${platform.base}/`)
+     await expect(page).toHaveURL(`${platform.base}/`)
+ 
+-    const modelResponse = await context.request.put(`${platform.base}/api/model-config`, {
+-      data: {
+-        baseUrl: "http://127.0.0.1:9876/v1",
+-        model: "fixture-model",
+-        apiKey: "fixture-private-key",
+-      },
+-    })
++    const modelResponse = await context.request.put(
++      `${platform.base}/api/model-config`,
++      {
++        data: {
++          baseUrl: "http://127.0.0.1:9876/v1",
++          model: "fixture-model",
++          apiKey: "fixture-private-key",
++        },
++      }
++    )
+     assert.equal(modelResponse.status(), 200)
+ 
+     await page.getByRole("button", { name: "Pentests", exact: true }).click()
+-    await page.getByRole("button", { name: "New pentest", exact: true }).first().click()
++    await page
++      .getByRole("button", { name: "New pentest", exact: true })
++      .first()
++      .click()
+     await page.getByRole("button", { name: /API Specification/ }).click()
+-    await expect(page.getByLabel("Postman Collection", { exact: true })).toBeVisible()
+-    await expect(page.getByLabel("POSTMAN_API_KEY", { exact: true })).toBeVisible()
++    await expect(
++      page.getByLabel("Postman Collection", { exact: true })
++    ).toBeVisible()
++    await expect(
++      page.getByLabel("POSTMAN_API_KEY", { exact: true })
++    ).toBeVisible()
+     await page.getByRole("button", { name: /Web Application/ }).click()
+-    await page.getByLabel("Target list", { exact: true }).fill("http://127.0.0.1:8080")
++    await page
++      .getByLabel("Target list", { exact: true })
++      .fill("http://127.0.0.1:8080")
+     await page.getByRole("button", { name: "Next", exact: true }).click()
+-    await expect(page.getByRole("heading", { name: "Authentication", exact: true })).toBeVisible()
++    await expect(
++      page.getByRole("heading", { name: "Authentication", exact: true })
++    ).toBeVisible()
+     await page.getByRole("button", { name: "Next", exact: true }).click()
+     await page.getByRole("button", { name: "Next", exact: true }).click()
+     // Execution limits: turn presets carry an estimate, and no price budget
+@@ -72,18 +91,31 @@ test("browser creates, confirms, reloads, and inspects a Web App Pentest", async
+     await expect(
+       page.getByText("轮次预设与预计耗时", { exact: true })
+     ).toBeVisible()
+-    await expect(page.getByRole("button", { name: /500 轮.*1 小时以上/ })).toBeVisible()
+-    await expect(page.getByRole("button", { name: /200 轮.*45 分钟/ })).toBeVisible()
+-    await expect(page.getByRole("button", { name: /100 轮.*20–30 分钟/ })).toBeVisible()
+-    await expect(page.getByRole("button", { name: /50 轮.*10–15 分钟/ })).toBeVisible()
++    await expect(
++      page.getByRole("button", { name: /500 轮.*1 小时以上/ })
++    ).toBeVisible()
++    await expect(
++      page.getByRole("button", { name: /200 轮.*45 分钟/ })
++    ).toBeVisible()
++    await expect(
++      page.getByRole("button", { name: /100 轮.*20–30 分钟/ })
++    ).toBeVisible()
++    await expect(
++      page.getByRole("button", { name: /50 轮.*10–15 分钟/ })
++    ).toBeVisible()
+     await expect(
+       page.getByText(/按 DeepSeek v4\.1 约 60 tokens\/s/)
+     ).toHaveCount(0)
+     await expect(
+-      page.getByText("只按 Agent 执行轮次控制上限，不再设置费用预算。", { exact: true })
++      page.getByText("只按 Agent 执行轮次控制上限，不再设置费用预算。", {
++        exact: true,
++      })
+     ).toHaveCount(0)
+     await expect(
+-      page.getByText("默认 500。每个 Agent 独立计算回合数；多个 Agent 并行执行。", { exact: true })
++      page.getByText(
++        "默认 500。每个 Agent 独立计算回合数；多个 Agent 并行执行。",
++        { exact: true }
++      )
+     ).toHaveCount(0)
+     await expect(
+       page.locator("section").getByText("1 小时以上", { exact: true })
+@@ -92,41 +124,153 @@ test("browser creates, confirms, reloads, and inspects a Web App Pentest", async
+       page.getByLabel("Maximum LLM Budget", { exact: true })
+     ).toHaveCount(0)
+     await page.getByRole("button", { name: "Next", exact: true }).click()
+-    await expect(page.getByRole("heading", { name: "Review & Launch", exact: true })).toBeVisible()
+-    await expect(page.getByText("启动前检查本次测试配置。", { exact: true })).toBeVisible()
+-    await expect(page.getByText("敏感内容只显示配置状态。", { exact: false })).toHaveCount(0)
+-    await expect(page.getByText(/确认后才会创建并启动后台 Web App/)).toHaveCount(0)
+-    await expect(page.locator("section").getByText("预计耗时", { exact: true })).toBeVisible()
++    await expect(
++      page.getByRole("heading", { name: "Review & Launch", exact: true })
++    ).toBeVisible()
++    await expect(
++      page.getByText("启动前检查本次测试配置。", { exact: true })
++    ).toBeVisible()
++    await expect(
++      page.getByText("敏感内容只显示配置状态。", { exact: false })
++    ).toHaveCount(0)
++    await expect(
++      page.getByText(/确认后才会创建并启动后台 Web App/)
++    ).toHaveCount(0)
++    await expect(
++      page.locator("section").getByText("预计耗时", { exact: true })
++    ).toBeVisible()
+     await expect(
+       page.locator("section").getByText("1 小时以上", { exact: true })
+     ).toBeVisible()
+-    await expect(page.getByRole("strong").filter({ hasText: "未配置" }).first()).toBeVisible()
+-    await page.getByRole("button", { name: "启动 Web App Pentest", exact: true }).click()
++    await expect(
++      page.getByRole("strong").filter({ hasText: "未配置" }).first()
++    ).toBeVisible()
++    await page
++      .getByRole("button", { name: "启动 Web App Pentest", exact: true })
++      .click()
+ 
+     await expect(page).toHaveURL(/view=pentests&task=/)
+     const taskUrl = page.url()
+-    await expect(page.getByRole("heading", { name: "Web App Pentest details", exact: true })).toBeVisible()
+-    await expect(page.getByTestId("pentest-status")).toHaveText("completed", { timeout: 20000 })
++    await expect(
++      page.getByRole("heading", {
++        name: "Web App Pentest details",
++        exact: true,
++      })
++    ).toBeVisible()
++    await expect(page.getByTestId("pentest-status")).toHaveText("completed", {
++      timeout: 20000,
++    })
+ 
++    await expect(page.getByTestId("pentest-result-completeness")).toHaveText(
++      "最终结果"
++    )
+     await page.getByRole("tab", { name: "Activity", exact: true }).click()
+-    await page.getByRole("button", { name: "Load more events", exact: true }).click()
+-    await expect(page.getByRole("group").filter({ hasText: "Controlled executor finished" })).toBeVisible()
++    await page
++      .getByRole("button", { name: "Load more events", exact: true })
++      .click()
++    await expect(
++      page
++        .getByRole("group")
++        .filter({ hasText: "Controlled executor finished" })
++    ).toBeVisible()
+     await page.getByRole("tab", { name: "Agents", exact: true }).click()
+-    await expect(page.getByText("Controlled executor", { exact: true })).toBeVisible()
++    await expect(
++      page.getByText("Controlled executor", { exact: true })
++    ).toBeVisible()
+     await page.getByRole("tab", { name: "Findings", exact: true }).click()
+-    await expect(page.getByText("当前范围没有发现记录。", { exact: true })).toBeVisible()
+-    await expect(page.getByText("发现记录：0 · 结果缺失任务：0 · 读取异常任务：0", { exact: true })).toBeVisible()
++    await expect(
++      page.getByText("当前范围没有发现记录。", { exact: true })
++    ).toBeVisible()
++    await expect(
++      page.getByText("发现记录：0 · 结果缺失任务：0 · 读取异常任务：0", {
++        exact: true,
++      })
++    ).toBeVisible()
+     await page.getByRole("tab", { name: "Artifacts", exact: true }).click()
+     await expect(page.getByText("report.md", { exact: false })).toBeVisible()
+-    await page.getByRole("button", { name: "查看 report.md", exact: true }).click()
+-    await expect(page.getByText("Controlled execution fixture report", { exact: true })).toBeVisible()
++    await page
++      .getByRole("button", { name: "查看 report.md", exact: true })
++      .click()
++    await expect(
++      page.getByText("Controlled execution fixture report", { exact: true })
++    ).toBeVisible()
+ 
+     await page.close()
+     page = await context.newPage()
+     await page.goto(taskUrl)
+-    await expect(page.getByRole("heading", { name: "Web App Pentest details", exact: true })).toBeVisible()
++    await expect(
++      page.getByRole("heading", {
++        name: "Web App Pentest details",
++        exact: true,
++      })
++    ).toBeVisible()
+     await expect(page.getByTestId("pentest-status")).toHaveText("completed")
+-    await page.screenshot({ path: "docs/verification/issue-3/web-app-pentest-details.png", fullPage: true })
++    await page.screenshot({
++      path: "docs/verification/issue-3/web-app-pentest-details.png",
++      fullPage: true,
++    })
++    await writeFile(
++      path.join(platform.dataDir, "sandbox-failure"),
++      "terminal cleanup fixture"
++    )
++    const failureTask = (
++      await (
++        await context.request.post(`${platform.base}/api/pentests`, {
++          data: {
++            kind: "web_app_pentest",
++            targets: ["http://127.0.0.1:9"],
++            context: { notes: "final-write-failure" },
++          },
++        })
++      ).json()
++    ).task
++    assert.equal(
++      (
++        await context.request.post(
++          `${platform.base}/api/pentests/${failureTask.id}/start`,
++          { data: { confirmed: true } }
++        )
++      ).status(),
++      202
++    )
++    await page.goto(`${platform.base}/?view=pentests&task=${failureTask.id}`)
++    await expect(page.getByTestId("pentest-status")).toHaveText("failed", {
++      timeout: 20000,
++    })
++    await expect(page.getByTestId("pentest-result-completeness")).toHaveText(
++      "部分结果"
++    )
++    await expect(
++      page.getByRole("button", { name: "重试清理", exact: true })
++    ).toBeVisible()
++    await unlink(path.join(platform.dataDir, "sandbox-failure"))
++    page.once("dialog", (dialog) => dialog.accept())
++    await page.getByRole("button", { name: "重试清理", exact: true }).click()
++    await expect(page.getByTestId("pentest-status")).toHaveText("failed")
++    await expect(page.getByTestId("pentest-cleanup")).toContainText(
++      "沙箱清理：已确认"
++    )
++    await expect(
++      page.getByRole("alert").filter({ hasText: "最终结果尚未成功保存。" })
++    ).toBeVisible()
++    const resultsFile = path.join(
++      platform.dataDir,
++      "pentests",
++      failureTask.id,
++      "results.json"
++    )
++    const partial = await readFile(resultsFile, "utf8")
++    await writeFile(resultsFile, "{corrupt-fixture")
++    await page.reload()
++    await expect(page.getByTestId("pentest-status")).toHaveText("failed")
++    await expect(page.getByTestId("pentest-result-completeness")).toHaveText(
++      "结果读取异常"
++    )
++    await writeFile(resultsFile, partial)
++    await page.reload()
++    await expect(page.getByTestId("pentest-result-completeness")).toHaveText(
++      "部分结果"
++    )
+   } finally {
+     await browser?.close()
+     await platform.dispose()
+diff --git a/tests/strix-worker-stop.test.mjs b/tests/strix-worker-stop.test.mjs
+index 57a02c4..526a8b1 100644
+--- a/tests/strix-worker-stop.test.mjs
++++ b/tests/strix-worker-stop.test.mjs
+@@ -29,7 +29,10 @@ test("SIGTERM makes the worker run the Strix cleanup path and publish stopped",
+     )
+ 
+     const runtime = JSON.parse(
+-      await readFile(path.join(directory, "runtime.json"), "utf8")
++      (await readFile(path.join(directory, "execution-events.jsonl"), "utf8"))
++        .trim()
++        .split("\n")
++        .at(-1)
+     )
+     assert.equal(runtime.status, "stopped")
+     assert.equal(runtime.phase, "stopped_by_user")
+@@ -40,3 +43,29 @@ test("SIGTERM makes the worker run the Strix cleanup path and publish stopped",
+     await rm(directory, { recursive: true, force: true })
+   }
+ })
++
++test("worker preserves tool events containing native agent locks and redacts credentials", async () => {
++  const directory = await mkdtemp(path.join(tmpdir(), "penny-worker-events-"))
++  try {
++    const result = spawnSync(
++      python(),
++      ["tests/helpers/strix-worker-stop-harness.py", directory, "events"],
++      { encoding: "utf8", timeout: 30000 }
++    )
++    assert.equal(result.status, 0, result.stderr)
++    const text = await readFile(path.join(directory, "events.jsonl"), "utf8")
++    const events = text.trim().split("\n").map(JSON.parse)
++    const tool = events.find((event) => event.data?.name === "tool_called")
++    assert.equal(tool?.data.item.raw_item.name, "terminal")
++    assert.equal(tool?.data.item.raw_item.arguments, "[REDACTED]")
++    assert.equal(tool?.agentId, "root-agent")
++    assert.equal(tool?.executionId, "worker-stop-fixture")
++    assert.doesNotMatch(text, /fixture-secret|_thread.lock/)
++    const results = JSON.parse(
++      await readFile(path.join(directory, "results.json"), "utf8")
++    )
++    assert.equal(results.final, true)
++  } finally {
++    await rm(directory, { recursive: true, force: true })
++  }
++})

@@ -1,0 +1,47 @@
+✖ sandbox confirmation failure retains stopping and its slot until an idempotent retry confirms cleanup (11946.952167ms)
+✖ startup rejects a live foreign PID without signaling it and task reads preserve the reconciled record (11120.830542ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 23114.395333
+
+✖ failing tests:
+
+test at tests/pentest-stop.test.mjs:349:1
+✖ sandbox confirmation failure retains stopping and its slot until an idempotent retry confirms cleanup (11946.952167ms)
+  AssertionError [ERR_ASSERTION]: startup must check the pending cleanup
+      at TestContext.<anonymous> (file:///Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/tests/pentest-stop.test.mjs:373:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at tests/pentest-stop.test.mjs:387:1
+✖ startup rejects a live foreign PID without signaling it and task reads preserve the reconciled record (11120.830542ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'running'
+  - 'interrupted'
+  
+      at TestContext.<anonymous> (file:///Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/tests/pentest-stop.test.mjs:398:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:785:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'running',
+    expected: 'interrupted',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

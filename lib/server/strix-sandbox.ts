@@ -44,3 +44,26 @@ export async function reapStrixSandbox(
     // Docker may be unavailable or the container may already be gone.
   }
 }
+
+// Strict lifecycle confirmation: command failures and remaining containers are
+// observable outcomes; callers retain the active slot until both checks pass.
+export async function confirmStrixSandboxCleanup(
+  taskId: string,
+  runner: SandboxCommandRunner = runCommand
+) {
+  const args = ["ps", "-aq", "--filter", `label=strix-run-id=${taskId}`]
+  try {
+    const before = await runner("docker", args)
+    const ids = before.stdout.trim().split(/\s+/).filter(Boolean)
+    if (ids.length) await runner("docker", ["rm", "-f", ...ids])
+    const after = await runner("docker", args)
+    if (after.stdout.trim())
+      return { sandboxCleared: false, error: "沙箱清理后仍然存在。" }
+    return { sandboxCleared: true }
+  } catch {
+    return {
+      sandboxCleared: false,
+      error: "沙箱清理检查失败，请重试结束测试。",
+    }
+  }
+}

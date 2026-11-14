@@ -115,3 +115,32 @@ sequenceDiagram
 - 不在本文档定义接口形状；接口决策走 `codebase-design`
 - 不覆盖审批（本期排除）与 Caido 工作台入口
 - 图表基线随 `origin/main` 更新；模块边界变化时才需要改图
+
+## 6. #45 生命周期模块更新（2026-11-14）
+
+本节记录 #45 的模块边界。前文保留所注明的历史快照。
+
+```mermaid
+flowchart TB
+  UI["Pentest 页面：revision、stopping、清理重试"]
+  API["公开任务接口：启动、读取、结束"]
+  RUNTIME["pentest-runtime：配置与进程交接"]
+  MANAGER["pentest-manager：串行保存、事件消费、身份与资源确认"]
+  STATE["pentest-lifecycle：纯状态转换"]
+  WORKER["strix-worker：原生执行、取消与持久事件"]
+  RESULTS["readTaskResults：原生最终标记确认"]
+  STORE["本地任务、runtime、执行事件与结果"]
+  STARTUP["instrumentation：服务启动核查"]
+  UI --> API
+  API --> RUNTIME
+  API -->|只读查询| STORE
+  RUNTIME --> MANAGER
+  RUNTIME -->|controlled spawn| WORKER
+  WORKER -->|executionId 事件与原生结果| STORE
+  STARTUP --> MANAGER
+  MANAGER --> STATE
+  MANAGER --> RESULTS
+  MANAGER -->|保存生命周期与清理结果| STORE
+```
+
+任务读取保持只读；worker 不再写平台 runtime 或释放活动名额。运行管理模块在进程组退出与标签容器清理均确认后释放名额。最终完成沿用 #40 的 `final` 标记规则。详细状态图、文件契约、重启及停止语义见 [#45 生命周期文档](../implementation/issue-45-lifecycle.md)。

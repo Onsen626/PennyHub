@@ -1,0 +1,20 @@
+
+> next-app@0.0.1 test:catalog
+> node --test --test-concurrency=1 tests/native-catalog.test.mjs tests/native-catalog-ui.test.mjs
+
+✔ Skills and Tools browse real source, details, categories and task usage without starting scans (14958.984584ms)
+✔ authenticated catalog exposes actual bundled skill content and source revision (6556.4165ms)
+✔ tool catalog distinguishes native functions, sandbox references and MCP configuration (6875.2785ms)
+✔ catalog usage comes from selected task events and identifies Agent without exposing arguments (7071.93725ms)
+✔ MCP declarations stay unverified, hide credentials and report configuration read errors (7531.192041ms)
+✔ catalog follows configured Strix checkout and reports its actual Git revision (6346.68ms)
+✔ catalog uses the selected Strix interpreter when service PATH resolves an incompatible python3 (6584.720375ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 56181.740875
+EXIT_STATUS=0

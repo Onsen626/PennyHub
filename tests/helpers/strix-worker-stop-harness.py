@@ -8,6 +8,7 @@ cleanup both ran before the worker published `stopped`.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import importlib.util
 import io
 import json
@@ -37,6 +38,8 @@ class AgentCoordinator:
 
 class ReportState:
     def __init__(self, scan_id: str) -> None:
+        global REPORT
+        REPORT = self
         self.scan_id = scan_id
         self.vulnerability_reports: list[object] = []
         self.final_scan_result = None
@@ -58,6 +61,29 @@ CAPTURED: dict[str, object] = {}
 
 async def run_strix_scan(**kwargs: object) -> None:
     CAPTURED.update(kwargs)
+    if len(sys.argv) > 2 and sys.argv[2] == "events":
+        @dataclass
+        class Agent:
+            name: str
+            lock: object
+
+        @dataclass
+        class Item:
+            agent: object
+            def to_input_item(self):
+                return {"type": "function_call", "name": "terminal", "arguments": "fixture-secret"}
+
+        @dataclass
+        class Event:
+            name: str
+            item: object
+            type: str = "run_item_stream_event"
+
+        kwargs["event_sink"]("root-agent", Event("tool_called", Item(Agent("Root", threading.Lock()))))
+        kwargs["event_sink"]("root-agent", {"type": "plain", "text": "fixture-secret"})
+        REPORT.run_record["status"] = "completed"
+        REPORT.final_scan_result = "Fixture completed"
+        return
     try:
         await asyncio.sleep(60)
     finally:
@@ -101,6 +127,8 @@ spec.loader.exec_module(worker_module)
 worker_module.check_runtime = lambda source: {"image": "fake-image"}
 
 payload = {
+    "credentials": {"customInstructions": "fixture-secret"},
+    "executionId": "worker-stop-fixture",
     "directory": str(DIRECTORY),
     "sourcePath": str(DIRECTORY),
     "slot": str(DIRECTORY / "slot.json"),
@@ -116,14 +144,18 @@ payload = {
     },
 }
 sys.stdin = io.StringIO(json.dumps(payload))
-threading.Timer(0.6, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
+if len(sys.argv) < 3:
+    threading.Timer(0.6, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
 
 code = worker_module.main()
 if code != 0:
     print(f"worker exited with {code}", file=sys.stderr)
     raise SystemExit(2)
 
-runtime = json.loads((DIRECTORY / "runtime.json").read_text(encoding="utf-8"))
+if len(sys.argv) > 2:
+    raise SystemExit(0)
+
+runtime = json.loads((DIRECTORY / "execution-events.jsonl").read_text(encoding="utf-8").splitlines()[-1])
 for name in ("runner-cleaned", "report-cleaned"):
     if not (DIRECTORY / name).exists():
         print(f"missing {name}", file=sys.stderr)

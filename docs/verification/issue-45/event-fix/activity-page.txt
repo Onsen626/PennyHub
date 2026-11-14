@@ -1,0 +1,88 @@
+page: 723e8322-090e-4e80-898f-63dc6df9c101
+My app — http://127.0.0.1:3000/?view=pentests&task=59448dd0-82b3-4ced-8dd6-1dbcf0fd0338
+- generic
+  - generic
+    - generic
+      - StaticText "Flocks"
+    - button "Search ⌘K" [ref=e675]
+      - generic
+        - textbox "Search" [ref=e683]
+        - StaticText "⌘K"
+    - generic
+      - StaticText "首页"
+      - list [ref=e684] clickable [onclick]
+        - listitem [level=1]
+          - button "控制台首页" [ref=e700]
+            - StaticText "控制台首页"
+    - generic
+      - StaticText "AI 安全工作台"
+      - list [ref=e685] clickable [onclick]
+        - listitem [level=1]
+          - button "Dashboard" [ref=e701]
+            - StaticText "Dashboard"
+        - listitem [level=1]
+          - button "Pentests" [ref=e702]
+            - StaticText "Pentests"
+        - listitem [level=1]
+          - button "现有风险" [ref=e703]
+            - StaticText "现有风险"
+    - generic
+      - StaticText "AGENT SMITH"
+      - list [ref=e686] clickable [onclick]
+        - listitem [level=1]
+          - button "Agents 17" [ref=e704]
+            - StaticText "Agents"
+            - StaticText "17"
+        - listitem [level=1]
+          - button "Workflows 4" [ref=e705]
+            - StaticText "Workflows"
+            - StaticText "4"
+        - listitem [level=1]
+          - button "Skills 75" [ref=e706]
+            - StaticText "Skills"
+            - StaticText "75"
+        - listitem [level=1]
+          - button "Tools 61" [ref=e707]
+            - StaticText "Tools"
+            - StaticText "61"
+        - listitem [level=1]
+          - button "Models" [ref=e708]
+            - StaticText "Models"
+        - listitem [level=1]
+          - button "协同通道" [ref=e709]
+            - StaticText "协同通道"
+    - button "Resize or collapse sidebar" [ref=e676]
+  - main
+    - sectionheader
+      - button "AI Copilot" [ref=e677]
+        - StaticText "AI Copilot"
+      - button "设置" [ref=e678]
+        - StaticText "设置"
+    - generic
+      - main
+        - button "Back to Pentests" [ref=e854]
+          - StaticText "Back to Pentests"
+        - sectionheader
+          - heading "Web App Pentest details" [level=1, ref=e855]
+          - paragraph
+            - StaticText "59448dd0-82b3-4ced-8dd6-1dbcf0fd0338"
+          - StaticText "completed"
+        - paragraph
+          - StaticText "最终结果"
+        - paragraph
+          - StaticText "进程组退出：已确认；沙箱清理：已确认"
+        - tablist "Test details"
+          - tab "Overview" [ref=e857]
+          - tab "Activity" [selected, ref=e858]
+          - tab "Agents" [ref=e859]
+          - tab "Findings" [ref=e860]
+          - tab "Artifacts" [ref=e861]
+        - tabpanel "Activity"
+          - generic
+            - heading "Activity" [level=2, ref=e864]
+            - paragraph
+            - button "Load more events" [ref=e865]
+            - list
+- button "Open Next.js Dev Tools" [expanded=false, ref=e682]
+  - image
+- alert

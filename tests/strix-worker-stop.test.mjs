@@ -29,13 +29,42 @@ test("SIGTERM makes the worker run the Strix cleanup path and publish stopped", 
     )
 
     const runtime = JSON.parse(
-      await readFile(path.join(directory, "runtime.json"), "utf8")
+      (await readFile(path.join(directory, "execution-events.jsonl"), "utf8"))
+        .trim()
+        .split("\n")
+        .at(-1)
     )
     assert.equal(runtime.status, "stopped")
     assert.equal(runtime.phase, "stopped_by_user")
     // The runner teardown runs first, then the worker's own report cleanup.
     assert.ok(existsSync(path.join(directory, "runner-cleaned")))
     assert.ok(existsSync(path.join(directory, "report-cleaned")))
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test("worker preserves tool events containing native agent locks and redacts credentials", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "penny-worker-events-"))
+  try {
+    const result = spawnSync(
+      python(),
+      ["tests/helpers/strix-worker-stop-harness.py", directory, "events"],
+      { encoding: "utf8", timeout: 30000 }
+    )
+    assert.equal(result.status, 0, result.stderr)
+    const text = await readFile(path.join(directory, "events.jsonl"), "utf8")
+    const events = text.trim().split("\n").map(JSON.parse)
+    const tool = events.find((event) => event.data?.name === "tool_called")
+    assert.equal(tool?.data.item.raw_item.name, "terminal")
+    assert.equal(tool?.data.item.raw_item.arguments, "[REDACTED]")
+    assert.equal(tool?.agentId, "root-agent")
+    assert.equal(tool?.executionId, "worker-stop-fixture")
+    assert.doesNotMatch(text, /fixture-secret|_thread.lock/)
+    const results = JSON.parse(
+      await readFile(path.join(directory, "results.json"), "utf8")
+    )
+    assert.equal(results.final, true)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

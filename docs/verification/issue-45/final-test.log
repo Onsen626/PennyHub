@@ -1,0 +1,169 @@
+
+> next-app@0.0.1 test
+> npm run test:unit && npm run test:findings && npm run test:api && npm run test:ui && npm run test:chat && npm run test:pentests && npm run test:catalog
+
+
+> next-app@0.0.1 test:unit
+> node --test tests/pentest-inputs.unit.test.mjs tests/strix-runtime.unit.test.mjs tests/pentest-process.unit.test.mjs tests/pentest-estimate.unit.test.mjs tests/strix-sandbox.unit.test.mjs tests/controlled-spawn.unit.test.mjs tests/pentest-lifecycle.unit.test.mjs
+
+✔ detached children and raw spawn imports stay inside the wrapper (110.037166ms)
+✔ the worker wrapper detaches into its own group and carries the run label (48.558042ms)
+✔ the non-detached wrapper overrides a rogue detached option (7.527625ms)
+✔ 50 turns estimate from the 60 tokens/s assumption (0.746125ms)
+✔ 100 turns double the 50-turn estimate (0.073708ms)
+✔ 500 turns span roughly 1.7 to 2.2 hours (0.067291ms)
+✔ invalid turn counts have no estimate (0.077791ms)
+✔ durations under an hour read as minutes and longer ones as hours (0.081334ms)
+✔ preset turn counts show the agreed labels (0.074041ms)
+✔ custom turn counts keep the computed range (0.0645ms)
+✔ target lists trim CRLF, blank lines and whole-line comments (0.975542ms)
+✔ targets normalize domains, IPv4, IPv6, paths and duplicate URLs (4.087834ms)
+✔ targets reject unsupported schemes, credentials, fragments and invalid hosts (0.411375ms)
+✔ Postman accepts collection UUID and supported environment parameters (0.332125ms)
+✔ Postman rejects malformed UUID, protocol, credentials and unknown parameters (0.1965ms)
+✔ input paths resolve symlinks and reject relative, missing and directory paths (3.676542ms)
+✔ text input preserves content and enforces UTF-8 byte limits (1.723291ms)
+✔ OpenAPI JSON summarizes servers, operations, parameters, bodies and authentication (0.903291ms)
+✔ Swagger YAML resolves host, base path and schemes (3.165792ms)
+✔ Postman traverses nested folders and resolves collection variables (1.09ms)
+✔ API specifications reject malformed JSON/YAML, unknown formats and empty operations (2.086375ms)
+✔ confirmed start establishes an execution identity without assigning the platform PID to the worker (1.072292ms)
+✔ only the current execution can publish its worker identity and enter running (0.292958ms)
+✔ stop requests enter stopping idempotently and reject late running events (0.115416ms)
+✔ stopped requires both process group exit and sandbox cleanup confirmation (0.140417ms)
+✔ completion requires a durable final result and failures and interruptions preserve identity (0.104ms)
+✔ cleanup observations preserve lifecycle status and increment the public revision (0.067583ms)
+✔ execution progress updates its revision without changing status or assigning worker identity during preparation (0.074666ms)
+✔ a process that is already gone needs no signal (0.761917ms)
+✔ a worker that exits on SIGTERM is never escalated (0.155625ms)
+✔ a worker ignoring SIGTERM is escalated to SIGKILL (0.106375ms)
+✔ a worker that survives SIGKILL is reported as not terminated (0.127083ms)
+✔ the platform's own pid is never selected as the stop target (0.076ms)
+✔ group liveness outlives the group leader (191.30625ms)
+✔ a zombie is alive to signals but cannot run, so it must not hold a lock (30.014167ms)
+✔ a live process and a dead pid are not zombies (32.634417ms)
+✔ a saved runtime whose checkout is gone falls back to the bundled one (1.713416ms)
+✔ a usable saved runtime is used as a whole (0.124791ms)
+✔ an explicit source uses that checkout's interpreter (0.110542ms)
+✔ an explicit interpreter wins and keeps a usable source for PYTHONPATH (0.09575ms)
+✔ an explicit interpreter with a stale saved runtime uses the bundled source (0.071958ms)
+✔ removes containers that carry the task's run label (1.020167ms)
+✔ does nothing when no labelled container is left (0.122583ms)
+✔ dockerd being unavailable never fails the stop (0.100042ms)
+✔ a failed rm never fails the stop (0.088125ms)
+ℹ tests 45
+ℹ suites 0
+ℹ pass 45
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 891.37775
+
+> next-app@0.0.1 test:findings
+> node --test tests/findings-query.test.mjs
+
+✔ query preserves per-task identities, missing/corrupt counts and unknown severity (46.60225ms)
+✔ same native identity across tasks remains independent and legacy completeness is unknown (7.729667ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 319.463042
+
+> next-app@0.0.1 test:api
+> node --test tests/platform-api.test.mjs
+
+✔ unauthenticated access redirects pages and rejects configuration APIs (4711.340459ms)
+✔ local administrator can login, read session, and logout revokes the cookie (1394.11ms)
+✔ saved model configuration survives reload and never returns its API key (63.703208ms)
+✔ model connection test uses real HTTP and classifies provider errors without leaking secrets (370.633833ms)
+✔ configuration key preservation, replacement, and clearing have explicit behavior (35.093041ms)
+✔ configuration and authenticated session remain available after server restart (11070.595583ms)
+✔ unauthenticated writes and cross-origin writes cannot change the saved configuration (241.153083ms)
+✔ provider timeout after response headers is reported as a timeout (23013.945458ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 56834.32475
+
+> next-app@0.0.1 test:ui
+> node --test tests/platform-ui.test.mjs
+
+✔ browser login, Models configuration, connection feedback, restart, and logout (39761.382167ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 40136.482792
+
+> next-app@0.0.1 test:chat
+> node --test tests/chat-copilot.test.mjs
+
+✔ chat session APIs require authentication and enforce same-origin on writes (2554.534542ms)
+✔ chat API reuses saved model configuration, deduplicates initial message, preserves attachment metadata, and survives restart (7842.540709ms)
+✔ browser verifies Home composer, fullscreen/drawer switching, state retention, navigation renames, and reload persistence (17750.047417ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 33309.492417
+
+> next-app@0.0.1 test:pentests
+> node --test --test-concurrency=1 tests/pentests.test.mjs tests/pentest-runtime.test.mjs tests/pentest-stop.test.mjs tests/pentest-stop-ui.test.mjs tests/pentest-ui.test.mjs tests/strix-worker-stop.test.mjs tests/strix-worker-runtime.test.mjs
+
+✔ confirmed Web App Pentest runs independently, survives restart, and preserves black-box inputs (22868.834875ms)
+✔ a detail poll that started before stop cannot restore the running state (25144.825209ms)
+✔ end test escalates until the worker process group is gone and keeps the stopped state (16346.657083ms)
+✔ stopping during preparing terminates the worker, keeps the platform up, and frees the slot (8838.102459ms)
+✔ a stop request recorded before launch aborts the start without reviving the task (6679.6725ms)
+✔ a legacy worker without execution identity is never signaled and retains its slot (7643.856ms)
+✔ sandbox confirmation failure retains stopping and its slot until an idempotent retry confirms cleanup (15131.1ms)
+✔ startup rejects a live foreign PID without signaling it and task reads preserve the reconciled record (20167.389417ms)
+✔ failed launch persistence retains spawned identity and blocks cleanup until group exit is confirmed (8875.220625ms)
+✔ browser creates, confirms, reloads, and inspects a Web App Pentest (27221.415167ms)
+✔ Web App Pentest draft validates targets, hides credentials and persists (15087.911ms)
+✔ Web App Pentest accepts target lists, API specifications, Postman targets, and instruction files (6005.029667ms)
+✔ runtime check reports a missing Strix checkout without leaking CalledProcessError (184.324375ms)
+✔ SIGTERM makes the worker run the Strix cleanup path and publish stopped (704.862208ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 181621.16125
+
+> next-app@0.0.1 test:catalog
+> node --test --test-concurrency=1 tests/native-catalog.test.mjs tests/native-catalog-ui.test.mjs
+
+✔ Skills and Tools browse real source, details, categories and task usage without starting scans (22666.679708ms)
+✔ authenticated catalog exposes actual bundled skill content and source revision (6978.67575ms)
+✔ tool catalog distinguishes native functions, sandbox references and MCP configuration (6410.267042ms)
+✔ catalog usage comes from selected task events and identifies Agent without exposing arguments (7620.850333ms)
+✔ MCP declarations stay unverified, hide credentials and report configuration read errors (6615.704542ms)
+✔ catalog follows configured Strix checkout and reports its actual Git revision (5922.830416ms)
+✔ catalog uses the selected Strix interpreter when service PATH resolves an incompatible python3 (5513.201125ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61999.789125
+EXIT_STATUS=0

@@ -1,0 +1,11 @@
+{
+  "id": "32afa674-41a5-4b27-aab5-c3a891f87ba9",
+  "ok": true,
+  "result": {
+    "result": "[{\"bytes\":2943,\"name\":\"下载\",\"status\":200},{\"bytes\":2584,\"name\":\"下载\",\"status\":200},{\"bytes\":3800,\"name\":\"下载\",\"status\":200},{\"bytes\":8611,\"name\":\"下载\",\"status\":200}]",
+    "origin": "http://127.0.0.1:3000/?view=pentests&task=eff072e4-98a4-4c07-ac51-0e57ffe65863"
+  },
+  "_meta": {
+    "runtimeId": "d25e7c14-c9be-480a-be8b-a636e0cd9eab"
+  }
+}

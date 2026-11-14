@@ -1,0 +1,12 @@
+✔ confirmed Web App Pentest runs independently, survives restart, and preserves black-box inputs (20195.305416ms)
+✔ browser creates, confirms, reloads, and inspects a Web App Pentest (22764.414125ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 43224.445083
+
+focused tests EXIT_STATUS=0

@@ -1,0 +1,112 @@
+{
+  "sourceCommit": "6abdee262a201ba3c79ef8c6cb1e0971a236cdde",
+  "scope": "Only independent static page http://host.docker.internal:8099/; quick; maxTurns 20; real configured model and native Strix; no other targets",
+  "runs": [
+    {
+      "taskId": "b8b28c8b-666b-47e8-865a-1ff7d3538ded",
+      "runtime": {
+        "startedAt": "2026-11-14T11:24:34.794Z",
+        "runName": "b8b28c8b-666b-47e8-865a-1ff7d3538ded",
+        "pid": 27978,
+        "phase": "resources_confirmed_clear",
+        "taskId": "b8b28c8b-666b-47e8-865a-1ff7d3538ded",
+        "status": "completed",
+        "revision": 8,
+        "executionId": "e26c6fb3-0eba-4474-8fd1-66011ff0a96b",
+        "ownerPid": 17282,
+        "workerPid": 27978,
+        "workerPgid": 27978,
+        "sandboxId": null,
+        "updatedAt": "2026-11-14T11:25:39.425Z",
+        "reason": "resources_confirmed_clear",
+        "eventCursor": 6,
+        "endedAt": "2026-11-14T11:24:53.894301+00:00",
+        "cleanup": {
+          "processGroupExited": true,
+          "sandboxCleared": true
+        }
+      },
+      "finalResults": true,
+      "findings": 0,
+      "workerStatus": {
+        "command": [
+          "ps",
+          "-p",
+          "27978",
+          "-o",
+          "pid=,stat=,pgid="
+        ],
+        "exitStatus": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "containers": {
+        "command": [
+          "docker",
+          "ps",
+          "-aq",
+          "--filter",
+          "label=strix-run-id=b8b28c8b-666b-47e8-865a-1ff7d3538ded"
+        ],
+        "exitStatus": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "workerLogSerializationWarnings": 16
+    },
+    {
+      "taskId": "eff072e4-98a4-4c07-ac51-0e57ffe65863",
+      "runtime": {
+        "startedAt": "2026-11-14T11:26:25.327Z",
+        "runName": "eff072e4-98a4-4c07-ac51-0e57ffe65863",
+        "pid": 28980,
+        "phase": "resources_confirmed_clear",
+        "taskId": "eff072e4-98a4-4c07-ac51-0e57ffe65863",
+        "status": "completed",
+        "revision": 8,
+        "executionId": "d17b90f6-7e4d-4ae7-97de-d804f904e1d5",
+        "ownerPid": 28522,
+        "workerPid": 28980,
+        "workerPgid": 28980,
+        "sandboxId": null,
+        "updatedAt": "2026-11-14T11:26:44.776Z",
+        "reason": "resources_confirmed_clear",
+        "eventCursor": 6,
+        "endedAt": "2026-11-14T11:26:44.497302+00:00",
+        "cleanup": {
+          "processGroupExited": true,
+          "sandboxCleared": true
+        }
+      },
+      "finalResults": true,
+      "findings": 0,
+      "workerStatus": {
+        "command": [
+          "ps",
+          "-p",
+          "28980",
+          "-o",
+          "pid=,stat=,pgid="
+        ],
+        "exitStatus": 1,
+        "stdout": "",
+        "stderr": ""
+      },
+      "containers": {
+        "command": [
+          "docker",
+          "ps",
+          "-aq",
+          "--filter",
+          "label=strix-run-id=eff072e4-98a4-4c07-ac51-0e57ffe65863"
+        ],
+        "exitStatus": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "workerLogSerializationWarnings": 15
+    }
+  ],
+  "activeSlotReleased": true,
+  "fixtureSha256": "e56d3b131c7f091458e9062b1d490d56c8de1915854574bbecbeb85302890563"
+}

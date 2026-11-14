@@ -1,0 +1,190 @@
+
+> next-app@0.0.1 test
+> npm run test:unit && npm run test:findings && npm run test:api && npm run test:ui && npm run test:chat && npm run test:pentests && npm run test:catalog
+
+
+> next-app@0.0.1 test:unit
+> node --test tests/pentest-inputs.unit.test.mjs tests/strix-runtime.unit.test.mjs tests/pentest-process.unit.test.mjs tests/pentest-estimate.unit.test.mjs tests/strix-sandbox.unit.test.mjs tests/controlled-spawn.unit.test.mjs tests/pentest-lifecycle.unit.test.mjs
+
+✔ detached children and raw spawn imports stay inside the wrapper (73.390834ms)
+✔ the worker wrapper detaches into its own group and carries the run label (49.288833ms)
+✔ the non-detached wrapper overrides a rogue detached option (5.986334ms)
+✔ 50 turns estimate from the 60 tokens/s assumption (0.795875ms)
+✔ 100 turns double the 50-turn estimate (0.074875ms)
+✔ 500 turns span roughly 1.7 to 2.2 hours (0.065375ms)
+✔ invalid turn counts have no estimate (0.076708ms)
+✔ durations under an hour read as minutes and longer ones as hours (0.084958ms)
+✔ preset turn counts show the agreed labels (0.067292ms)
+✔ custom turn counts keep the computed range (0.060375ms)
+✔ target lists trim CRLF, blank lines and whole-line comments (0.984833ms)
+✔ targets normalize domains, IPv4, IPv6, paths and duplicate URLs (3.893875ms)
+✔ targets reject unsupported schemes, credentials, fragments and invalid hosts (0.316333ms)
+✔ Postman accepts collection UUID and supported environment parameters (0.240583ms)
+✔ Postman rejects malformed UUID, protocol, credentials and unknown parameters (0.130959ms)
+✔ input paths resolve symlinks and reject relative, missing and directory paths (16.044708ms)
+✔ text input preserves content and enforces UTF-8 byte limits (12.31725ms)
+✔ OpenAPI JSON summarizes servers, operations, parameters, bodies and authentication (2.449709ms)
+✔ Swagger YAML resolves host, base path and schemes (8.069583ms)
+✔ Postman traverses nested folders and resolves collection variables (2.496583ms)
+✔ API specifications reject malformed JSON/YAML, unknown formats and empty operations (12.832584ms)
+✔ confirmed start establishes an execution identity without assigning the platform PID to the worker (0.834083ms)
+✔ only the current execution can publish its worker identity and enter running (0.269167ms)
+✔ stop requests enter stopping idempotently and reject late running events (0.111666ms)
+✔ stopped requires both process group exit and sandbox cleanup confirmation (0.142709ms)
+✔ completion requires a durable final result and failures and interruptions preserve identity (0.912ms)
+✔ cleanup observations preserve lifecycle status and increment the public revision (0.092959ms)
+✔ execution progress updates its revision without changing status or assigning worker identity during preparation (0.08625ms)
+✔ a process that is already gone needs no signal (0.743958ms)
+✔ a worker that exits on SIGTERM is never escalated (0.15025ms)
+✔ a worker ignoring SIGTERM is escalated to SIGKILL (0.107791ms)
+✔ a worker that survives SIGKILL is reported as not terminated (0.1265ms)
+✔ the platform's own pid is never selected as the stop target (0.076583ms)
+✔ group liveness outlives the group leader (198.629125ms)
+✔ a zombie is alive to signals but cannot run, so it must not hold a lock (39.433958ms)
+✔ a live process and a dead pid are not zombies (33.31075ms)
+✔ a saved runtime whose checkout is gone falls back to the bundled one (0.736625ms)
+✔ a usable saved runtime is used as a whole (0.075458ms)
+✔ an explicit source uses that checkout's interpreter (0.075458ms)
+✔ an explicit interpreter wins and keeps a usable source for PYTHONPATH (0.058833ms)
+✔ an explicit interpreter with a stale saved runtime uses the bundled source (0.063166ms)
+✔ removes containers that carry the task's run label (0.823333ms)
+✔ does nothing when no labelled container is left (0.105791ms)
+✔ dockerd being unavailable never fails the stop (0.095875ms)
+✔ a failed rm never fails the stop (0.0855ms)
+ℹ tests 45
+ℹ suites 0
+ℹ pass 45
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 810.773125
+
+> next-app@0.0.1 test:findings
+> node --test tests/findings-query.test.mjs
+
+✔ query preserves per-task identities, missing/corrupt counts and unknown severity (43.308625ms)
+✔ same native identity across tasks remains independent and legacy completeness is unknown (7.157542ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 296.296084
+
+> next-app@0.0.1 test:api
+> node --test tests/platform-api.test.mjs
+
+✔ unauthenticated access redirects pages and rejects configuration APIs (2673.0685ms)
+✔ local administrator can login, read session, and logout revokes the cookie (1533.840792ms)
+✔ saved model configuration survives reload and never returns its API key (63.024667ms)
+✔ model connection test uses real HTTP and classifies provider errors without leaking secrets (356.29675ms)
+✔ configuration key preservation, replacement, and clearing have explicit behavior (33.669292ms)
+✔ configuration and authenticated session remain available after server restart (5739.345542ms)
+✔ unauthenticated writes and cross-origin writes cannot change the saved configuration (261.992958ms)
+✔ provider timeout after response headers is reported as a timeout (23024.167458ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 38143.815917
+
+> next-app@0.0.1 test:ui
+> node --test tests/platform-ui.test.mjs
+
+✔ browser login, Models configuration, connection feedback, restart, and logout (33141.373958ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 33357.717875
+
+> next-app@0.0.1 test:chat
+> node --test tests/chat-copilot.test.mjs
+
+✔ chat session APIs require authentication and enforce same-origin on writes (1518.278292ms)
+✔ chat API reuses saved model configuration, deduplicates initial message, preserves attachment metadata, and survives restart (5766.664458ms)
+✔ browser verifies Home composer, fullscreen/drawer switching, state retention, navigation renames, and reload persistence (16045.893833ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 27868.149417
+
+> next-app@0.0.1 test:pentests
+> node --test --test-concurrency=1 tests/pentests.test.mjs tests/pentest-runtime.test.mjs tests/pentest-stop.test.mjs tests/pentest-stop-ui.test.mjs tests/pentest-ui.test.mjs tests/strix-worker-stop.test.mjs tests/strix-worker-runtime.test.mjs
+
+✖ confirmed Web App Pentest runs independently, survives restart, and preserves black-box inputs (21619.589584ms)
+✔ a detail poll that started before stop cannot restore the running state (21286.578083ms)
+✔ end test escalates until the worker process group is gone and keeps the stopped state (15232.345208ms)
+✔ stopping during preparing terminates the worker, keeps the platform up, and frees the slot (8934.480375ms)
+✔ a stop request recorded before launch aborts the start without reviving the task (6182.560125ms)
+✔ a legacy worker without execution identity is never signaled and retains its slot (6697.120541ms)
+✔ sandbox confirmation failure retains stopping and its slot until an idempotent retry confirms cleanup (14119.58475ms)
+✔ startup rejects a live foreign PID without signaling it and task reads preserve the reconciled record (10169.055416ms)
+✖ browser creates, confirms, reloads, and inspects a Web App Pentest (38546.643ms)
+✔ Web App Pentest draft validates targets, hides credentials and persists (12191.500125ms)
+✔ Web App Pentest accepts target lists, API specifications, Postman targets, and instruction files (6072.26825ms)
+✔ runtime check reports a missing Strix checkout without leaking CalledProcessError (147.775125ms)
+✔ SIGTERM makes the worker run the Strix cleanup path and publish stopped (710.009625ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 11
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 162609.766708
+
+✖ failing tests:
+
+test at tests/pentest-runtime.test.mjs:20:1
+✖ confirmed Web App Pentest runs independently, survives restart, and preserves black-box inputs (21619.589584ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  409 !== 200
+  
+      at TestContext.<anonymous> (file:///Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/tests/pentest-runtime.test.mjs:220:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+      at async Test.run (node:internal/test_runner/test:1110:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 409,
+    expected: 200,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/pentest-ui.test.mjs:10:1
+✖ browser creates, confirms, reloads, and inspects a Web App Pentest (38546.643ms)
+  Error: expect(locator).toHaveText(expected) failed
+  
+  Locator: getByTestId('pentest-status')
+  Expected: "failed"
+  Timeout: 20000ms
+  Error: element(s) not found
+  
+  Call log:
+    - Expect "toHaveText" getByTestId('pentest-status') with timeout 20000ms
+    - waiting for getByTestId('pentest-status')
+  
+      at captureRawStack (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/node_modules/playwright-core/lib/coreBundle.js:9551:17)
+      at callMatcherAsStep (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/node_modules/playwright/lib/matchers/expect.js:13342:57)
+      at Object.toHaveText (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/node_modules/playwright/lib/matchers/expect.js:13334:23)
+      at TestContext.<anonymous> (/Users/jennifer/orca/workspaces/PennyHub/issue45-implementation/tests/pentest-ui.test.mjs:233:54) {
+    matcherResult: { name: 'toHaveText', expected: 'failed', message: `expect(locator).toHaveText(expected) failed\n\nLocator: getByTestId('pentest-status')\nExpected: "failed"\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n  - Expect "toHaveText" getByTestId('pentest-status') with timeout 20000ms\n  - waiting for getByTestId('pentest-status')\n`, pass: false, actual: undefined, log: [ `  - Expect "toHaveText" getByTestId('pentest-status') with timeout 20000ms`, "  - waiting for getByTestId('pentest-status')" ], timeout: 20000, ariaSnapshot: '- text: Flocks\n- button "⌘K":\n  - textbox "Search":\n    - /placeholder: 搜索智能体、工具、CVE 编号，或按 ⌘K 唤起命令面板...\n  - text: ⌘K\n- text: 首页\n- list:\n  - listitem:\n    - button "控制台首页"\n- text: AI 安全工作台\n- list:\n  - listitem:\n    - button "Dashboard"\n  - listitem:\n    - button "Pentests"\n  - listitem:\n    - button "现有风险"\n- text: AGENT SMITH\n- list:\n  - listitem:\n    - button "Agents 17"\n  - listitem:\n    - button "Workflows 4"\n  - listitem:\n    - button "Skills"\n  - listitem:\n    - button "Tools"\n  - listitem:\n    - button "Models"\n  - listitem:\n    - button "协同通道"\n- button "Resize or collapse sidebar"\n- main:\n  - button "AI Copilot"\n  - button "设置"\n  - main:\n    - button "Back to Pentests"\n    - heading "Web App Pentest details" [level=1]\n    - paragraph: 7ee26d66-da8c-4a6d-9ace-1266565aa9b8\n    - status: 正在读取测试记录…\n    - tablist "Test details":\n      - tab "Overview" [selected]\n      - tab "Activity"\n      - tab "Agents"\n      - tab "Findings"\n      - tab "Artifacts"\n    - tabpanel "Overview"' }
+  }
+
+npm test EXIT_STATUS=1

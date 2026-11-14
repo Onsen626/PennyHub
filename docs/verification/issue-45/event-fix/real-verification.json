@@ -1,0 +1,65 @@
+{
+  "taskId": "59448dd0-82b3-4ced-8dd6-1dbcf0fd0338",
+  "runtime": {
+    "startedAt": "2026-11-14T11:36:19.265Z",
+    "runName": "59448dd0-82b3-4ced-8dd6-1dbcf0fd0338",
+    "pid": 32866,
+    "phase": "resources_confirmed_clear",
+    "taskId": "59448dd0-82b3-4ced-8dd6-1dbcf0fd0338",
+    "status": "completed",
+    "revision": 8,
+    "executionId": "bbcfcb8c-8abf-44b7-a250-fe4da6b643a2",
+    "ownerPid": 28522,
+    "workerPid": 32866,
+    "workerPgid": 32866,
+    "sandboxId": null,
+    "updatedAt": "2026-11-14T11:36:42.189Z",
+    "reason": "resources_confirmed_clear",
+    "eventCursor": 6,
+    "endedAt": "2026-11-14T11:36:41.893473+00:00",
+    "cleanup": {
+      "processGroupExited": true,
+      "sandboxCleared": true
+    }
+  },
+  "final": true,
+  "sdkEventCounts": {
+    "agent_updated_stream_event": 1,
+    "raw_response_event": 1543,
+    "run_item_stream_event": 19
+  },
+  "runItemEvents": 19,
+  "workerLog": "",
+  "checks": [
+    {
+      "command": [
+        "ps",
+        "-p",
+        "32866",
+        "-o",
+        "pid=,stat=,pgid="
+      ],
+      "exitStatus": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "docker",
+        "ps",
+        "-aq",
+        "--filter",
+        "label=strix-run-id=59448dd0-82b3-4ced-8dd6-1dbcf0fd0338"
+      ],
+      "exitStatus": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "slotReleased": true,
+  "sourceHashes": {
+    "scripts/strix-worker.py": "0efb572db8dad1a00e3be9b8e32c225fccbc0eb692d64aaa5d4cb7375ccddd76",
+    "tests/helpers/strix-worker-stop-harness.py": "3442195bfa81c5dfc9008f78aeea3e8714f356918b2ce17941c1b501bfd664a1",
+    "tests/strix-worker-stop.test.mjs": "0f09afc8d6054d57b98dcc04d627a506ad553f217d7486c8cacbcc512302726d"
+  }
+}

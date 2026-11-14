@@ -1,0 +1,88 @@
+page: 723e8322-090e-4e80-898f-63dc6df9c101
+My app — http://127.0.0.1:3000/?view=pentests&task=eff072e4-98a4-4c07-ac51-0e57ffe65863
+- generic
+  - generic
+    - generic
+      - StaticText "Flocks"
+    - button "Search ⌘K" [ref=e425]
+      - generic
+        - textbox "Search" [ref=e431]
+        - StaticText "⌘K"
+    - generic
+      - StaticText "首页"
+      - list [ref=e432] clickable [onclick]
+        - listitem [level=1]
+          - button "控制台首页" [ref=e441]
+            - StaticText "控制台首页"
+    - generic
+      - StaticText "AI 安全工作台"
+      - list [ref=e433] clickable [onclick]
+        - listitem [level=1]
+          - button "Dashboard" [ref=e442]
+            - StaticText "Dashboard"
+        - listitem [level=1]
+          - button "Pentests" [ref=e443]
+            - StaticText "Pentests"
+        - listitem [level=1]
+          - button "现有风险" [ref=e444]
+            - StaticText "现有风险"
+    - generic
+      - StaticText "AGENT SMITH"
+      - list [ref=e434] clickable [onclick]
+        - listitem [level=1]
+          - button "Agents 17" [ref=e445]
+            - StaticText "Agents"
+            - StaticText "17"
+        - listitem [level=1]
+          - button "Workflows 4" [ref=e446]
+            - StaticText "Workflows"
+            - StaticText "4"
+        - listitem [level=1]
+          - button "Skills" [ref=e447]
+            - StaticText "Skills"
+        - listitem [level=1]
+          - button "Tools" [ref=e448]
+            - StaticText "Tools"
+        - listitem [level=1]
+          - button "Models" [ref=e449]
+            - StaticText "Models"
+        - listitem [level=1]
+          - button "协同通道" [ref=e450]
+            - StaticText "协同通道"
+    - button "Resize or collapse sidebar" [ref=e426]
+  - main
+    - sectionheader
+      - button "AI Copilot" [ref=e427]
+        - StaticText "AI Copilot"
+      - button "设置" [ref=e428]
+        - StaticText "设置"
+    - generic
+      - main
+        - button "Back to Pentests" [ref=e429]
+          - StaticText "Back to Pentests"
+        - sectionheader
+          - heading "Web App Pentest details" [level=1, ref=e435]
+          - paragraph
+            - StaticText "eff072e4-98a4-4c07-ac51-0e57ffe65863"
+          - StaticText "completed"
+        - paragraph
+          - StaticText "最终结果"
+        - paragraph
+          - StaticText "进程组退出：已确认；沙箱清理：已确认"
+        - tablist "Test details"
+          - tab "Overview" [selected, ref=e436]
+          - tab "Activity" [ref=e437]
+          - tab "Agents" [ref=e438]
+          - tab "Findings" [ref=e439]
+          - tab "Artifacts" [ref=e440]
+        - tabpanel "Overview"
+          - generic
+            - heading "Run details" [level=2, ref=e451]
+            - DescriptionList
+          - generic
+            - heading "Report" [level=2, ref=e452]
+            - paragraph
+            - StaticText "# Executive Summary\n\nA lifecycle acceptance check was performed against a single static page at `http://host.docker.internal:8099/`. The engagement was deliberately scoped to one HTTP fetch of that exact document, with no crawling, no additional paths, no port scanning, and no child test agents, in order to verify native execution and final report persistence on a static fixture.\n\n**Overall risk posture:** No security issues identified. The fetched resource is a 188-byte static HTML document (titled `Issue45 lifecycle fixture`) containing a heading and a sentence of explanatory text. It exposes no forms, authentication, JavaScript, parameters, cookies, or external links, and therefore presents no meaningful attack surface within the authorized scope.\n\n**Key findings:** None. No vulnerabilities were confirmed, and none were inferred or assumed from the absence of testing.\n\n**Business impact:** None identified within the authorized scope of this exercise.\n\n# Methodology\n\n**Engagement type:** Constrained acceptance check (black-box, single-request) against one in-scope URL.\n\n**Scope:** `http://host.docker.internal:8099/` only. All other hosts, ports, paths, and assets were explicitly out of scope for this exercise, as was any crawling, fuzzing, injection testing, or parameter enumeration.\n\n**Approach:** One HTTP GET request was issued to the in-scope root document. The response status line, headers, and body were inspected. No further requests were made, and no specialized vulnerability testing was performed because the requested objective was to validate execution and reporting flow rather than to assess the fixture's security.\n\n**Constraints:** Single-request limit; no enumeration; no authentication or test-identity use; no hypothetical or scanner-derived findings included.\n\n# Technical Analysis\n\n**Observed response**\n\n- `HTTP/1.1 200 OK` with `Content-Type: text/html` and `Content-Length: 188`.\n- Body is a static HTML document with a title of `Issue45 lifecycle fixture`, an `h1` reading `Lifecycle verification`, and a paragraph stating the page is a static test fixture with no forms, authentication, JavaScript, or external links.\n\n**Assessment**\n\nThe document is fully static and self-contained. There are no request parameters, no input handling, no session or identity state, no client-side script, no dynamically loaded resources, and no outbound references. Consequently, none of the standard web application risk classes (injection, cross-site scripting, access control, authentication/session, SSRF, file handling, business logic) has a reachable surface on this page.\n\n**Findings:** No vulnerabilities were identified. No reports were filed because no weakness was observed or reproduced.\n\n**Systemic themes:** Not applicable; a single static document provides no basis for architectural observations.\n\n# Recommendations\n\n**Immediate**\n\n1. No remediation is required for the in-scope fixture; no security defects were identified.\n\n**Short-term**\n\n2. Treat this result strictly as an execution and reporting-flow validation. It does not constitute a security assessment of the surrounding application, and should not be cited as evidence of the application's security posture.\n\n**Medium-term**\n\n3. If a substantive security assessment of the broader application is desired, define an expanded scope covering the application's dynamic endpoints, authentication flows, and APIs, and authorize crawling and vulnerability testing against that scope.\n\n**Retest & validation**\n\n4. No retest is needed for this item. Any future change to the fixture that introduces forms, scripts, parameters, or server-side logic would warrant a fresh review under an appropriately scoped engagement.\n"
+- button "Open Next.js Dev Tools" [expanded=false, ref=e430]
+  - image
+- alert

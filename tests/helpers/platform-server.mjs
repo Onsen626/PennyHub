@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import net from "node:net"
@@ -9,6 +9,13 @@ export async function createPlatformServer({
   env: overrides = {},
 } = {}) {
   const dataDir = await mkdtemp(path.join(tmpdir(), "penny-platform-"))
+  const bin = path.join(dataDir, "fixture-bin")
+  await mkdir(bin)
+  await writeFile(
+    path.join(bin, "docker"),
+    '#!/bin/sh\nprintf \'%s\\n\' \"$*\" >> \"$PENNY_DATA_DIR/sandbox-commands.log\"\nif [ -f "$PENNY_DATA_DIR/sandbox-failure" ]; then exit 1; fi\nif [ \"$1\" = ps ] && [ -f \"$PENNY_DATA_DIR/sandbox-present\" ]; then echo fixture-container; fi\nexit 0\n',
+    { mode: 0o700 }
+  )
   const listener = net.createServer()
   await new Promise((resolve) => listener.listen(0, "127.0.0.1", resolve))
   const port = listener.address().port
@@ -16,6 +23,7 @@ export async function createPlatformServer({
   const env = {
     ...process.env,
     ...overrides,
+    PATH: `${bin}:${overrides.PATH ?? process.env.PATH}`,
     PENNY_DATA_DIR: dataDir,
     PENNY_NEXT_DIST_DIR: distDir,
     NEXT_TELEMETRY_DISABLED: "1",

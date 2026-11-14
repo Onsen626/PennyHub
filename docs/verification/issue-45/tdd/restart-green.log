@@ -1,0 +1,10 @@
+✔ sandbox confirmation failure retains stopping and its slot until an idempotent retry confirms cleanup (12319.697417ms)
+✔ startup rejects a live foreign PID without signaling it and task reads preserve the reconciled record (10549.041125ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 22912.281459
