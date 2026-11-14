@@ -9,7 +9,9 @@ import ts from "typescript"
 const directory = await mkdtemp(
   path.join(tmpdir(), "penny-strix-runtime-unit-")
 )
-const source = await readFile("lib/server/strix-runtime.ts", "utf8")
+const source = (
+  await readFile("lib/server/strix-runtime.ts", "utf8")
+).replace('import "server-only"', "")
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: {
     module: ts.ModuleKind.ESNext,
