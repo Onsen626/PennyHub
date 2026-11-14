@@ -77,3 +77,10 @@ stateDiagram-v2
 - 浏览器页面：旧 revision、旧请求回写、stopping、清理重试、刷新及结果完整性独立展示。
 
 实际命令、输出和退出状态记录在 `docs/verification/issue-45/`。模拟通过与 #44 真实沙箱证据分别保存。
+
+## 最终审查修正
+
+- `launch.json` 保存失败时，先通过 `EXECUTION_FAILED` 将已创建的 workerPid／workerPgid 保存到 failed 记录，再执行清理。preparing 的 workerPid／workerPgid 继续为空。
+- 清理优先使用 runtime 保存的身份；损坏或目录形式的 launch.json 不覆盖已知身份。缺少身份以及先前清理未确认时，ownerPid 相同也不证明进程组退出。只有启动调用明确确认尚未创建子进程时，可以确认没有执行进程。
+- `finishPentestCleanup` 统一处理清理观察、stopping 的 STOP_CONFIRMED、持久化和活动名额释放，供启动取消、启动失败、结束请求、执行事件与启动核查使用。执行事件和启动核查继续保存各自的原因及时间；终态清理重试保留执行错误与 endedAt。
+- 新增公开 HTTP 回归使用 launch.json 目录触发保存失败，并通过 PATH 中的模拟 ps 拒绝归属确认；验证失败身份、重试名额保留、禁止 Docker 调用，以及进程退出后的清理释放。

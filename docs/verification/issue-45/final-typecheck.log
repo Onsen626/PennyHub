@@ -1,0 +1,5 @@
+
+> next-app@0.0.1 typecheck
+> tsc --noEmit
+
+EXIT_STATUS=0

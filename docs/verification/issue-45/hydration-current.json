@@ -1,0 +1,9 @@
+{
+  "events": [],
+  "state": {
+    "errors": [],
+    "header": "设置",
+    "text": "F\nFlocks\n⌘K\n首页\n控制台首页\nAI 安全工作台\nDashboard\nPentests\n现有风险\nAGENT SMITH\nAgents\n17\nWorkflows\n4\nSkills\n75\nTools\n61\nModels\n协同通道\n设置\n今天需要验证哪个安全目标？\n添加附件\nWeb\nCloud\nRecon\nNetwork\nThreat Intel\nCompliance\n测试 API 越权与访问控制\n\n检查 API 端点的对象级与功能级访问控制缺陷（BOLA / IDOR）及跨租户权限提升路径...\n\n分析 OAuth 与 JWT 认证流程\n\n评估令牌签发、redirect_uri 校验、JWT kid 注入与算法混淆中的安全缺陷...\n\n检测 SSRF 服务端请求伪造向量\n\n排查 Webhook、文件导入、URL 预览等可触达内部元数据服务或内网资产的请求伪造路径...\n\n审计核心业务逻辑漏洞\n\n挖掘应用中的逻辑缺陷：并发条件竞争、订单/状态机篡改、工作流步骤绕过...",
+    "readyState": "complete"
+  }
+}

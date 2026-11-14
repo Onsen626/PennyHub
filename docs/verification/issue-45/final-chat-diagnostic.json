@@ -1,0 +1,141 @@
+{
+  "url": "http://127.0.0.1:58504/",
+  "readyState": "complete",
+  "viewport": [
+    1280,
+    720
+  ],
+  "buttons": [
+    {
+      "text": "设置",
+      "aria": null
+    },
+    {
+      "text": "全屏展开",
+      "aria": null
+    },
+    {
+      "text": "关闭聊天",
+      "aria": null
+    }
+  ],
+  "chat": [
+    {
+      "mode": "drawer",
+      "ancestors": [
+        {
+          "tag": "DIV",
+          "classes": "flex h-full max-h-full min-h-0 w-full overflow-hidden bg-background text-foreground flex-col",
+          "display": "flex",
+          "visibility": "visible",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0,
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          }
+        },
+        {
+          "tag": "ASIDE",
+          "classes": "hidden",
+          "display": "none",
+          "visibility": "visible",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0,
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          }
+        },
+        {
+          "tag": "DIV",
+          "classes": "relative flex min-h-0 flex-1 overflow-hidden",
+          "display": "flex",
+          "visibility": "visible",
+          "rect": {
+            "x": 256,
+            "y": 56,
+            "width": 1016,
+            "height": 656,
+            "top": 56,
+            "right": 1272,
+            "bottom": 712,
+            "left": 256
+          }
+        },
+        {
+          "tag": "MAIN",
+          "classes": "relative w-full min-w-0 flex-1 peer-data-[variant=inset]:m-2 peer-data-[variant=inset]:peer-data-[side=left]:ml-0 peer-data-[variant=inset]:peer-data-[side=right]:mr-0 peer-data-[variant=inset]:peer-data-[state=collapsed]:peer-data-[side=left]:ml-2 peer-data-[variant=inset]:peer-data-[state=collapsed]:peer-data-[side=right]:mr-2 transition-[margin] duration-80 peer-data-[variant=inset]:rounded-xl peer-data-[variant=inset]:bg-surface-2 peer-data-[variant=inset]:shadow-surface-2 flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden bg-neutral-50/60 md:h-[calc(100dvh-1rem)] md:max-h-[calc(100dvh-1rem)] dark:bg-background",
+          "display": "flex",
+          "visibility": "visible",
+          "rect": {
+            "x": 256,
+            "y": 8,
+            "width": 1016,
+            "height": 704,
+            "top": 8,
+            "right": 1272,
+            "bottom": 712,
+            "left": 256
+          }
+        },
+        {
+          "tag": "DIV",
+          "classes": "group/sidebar-wrapper relative flex min-h-svh w-full",
+          "display": "flex",
+          "visibility": "visible",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 720,
+            "top": 0,
+            "right": 1280,
+            "bottom": 720,
+            "left": 0
+          }
+        },
+        {
+          "tag": "BODY",
+          "classes": "",
+          "display": "block",
+          "visibility": "visible",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 720,
+            "top": 0,
+            "right": 1280,
+            "bottom": 720,
+            "left": 0
+          }
+        },
+        {
+          "tag": "HTML",
+          "classes": "__variable_a5256c __variable_8c25df font-sans antialiased light",
+          "display": "block",
+          "visibility": "visible",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 1280,
+            "height": 720,
+            "top": 0,
+            "right": 1280,
+            "bottom": 720,
+            "left": 0
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -23,7 +23,7 @@ export async function createPlatformServer({
   const env = {
     ...process.env,
     ...overrides,
-    PATH: `${bin}:${process.env.PATH}`,
+    PATH: `${bin}:${overrides.PATH ?? process.env.PATH}`,
     PENNY_DATA_DIR: dataDir,
     PENNY_NEXT_DIST_DIR: distDir,
     NEXT_TELEMETRY_DISABLED: "1",
